@@ -6,7 +6,7 @@
 <img src="https://raw.githubusercontent.com/massimoaria/contentanalysis/master/inst/www/ca_logo.jpg" width="400"/>
 </p>
 
-\## Overview
+## Overview
 
 `contentanalysis` is a comprehensive R package designed for in-depth
 analysis of scientific literature. It bridges the gap between raw PDF

@@ -7,3 +7,4 @@
 ^inst/examples$
 ^cran-comments\.md$
 ^CRAN-SUBMISSION$
+^[^/]+\.pdf$
