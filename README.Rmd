@@ -13,8 +13,12 @@ knitr::opts_chunk$set(
 
 # contentanalysis
 
+[![Project Status: Active - The project has reached a stable, usable state and is being actively developed.](http://www.repostatus.org/badges/latest/active.svg)](https://www.repostatus.org/#active) [![cran version](http://www.r-pkg.org/badges/version/contentanalysis)](https://cran.r-project.org/package=contentanalysis) [![rstudio mirror downloads](https://cranlogs.r-pkg.org/badges/contentanalysis)](https://github.com/r-hub/cranlogs.app) `r badger::badge_cran_download("contentanalysis", "grand-total")`
+
 <p align="center">
+
 <img src="https://raw.githubusercontent.com/massimoaria/contentanalysis/master/inst/www/ca_logo.jpg" width="400"/>
+
 </p>
 
 ## Overview
