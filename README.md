@@ -1,6 +1,11 @@
 
 # contentanalysis
 
+<p align="center">
+
+<img src="https://raw.githubusercontent.com/massimoaria/contentanalysis/master/inst/www/ca_logo.jpg" width="400"/>
+</p>
+
 \## Overview
 
 `contentanalysis` is a comprehensive R package designed for in-depth
@@ -211,7 +216,7 @@ analysis <- analyze_scientific_content(
 #> Attempting to retrieve references from CrossRef...
 #> Successfully retrieved 33 references from CrossRef
 #> Fetching Open Access metadata for 14 DOIs from OpenAlex...
-#> Successfully retrieved metadata for 14 references from OpenAlex
+#> Successfully retrieved metadata for 13 references from OpenAlex
 ```
 
 This single function call:
@@ -571,8 +576,8 @@ if (!is.null(analysis$references_oa)) {
   # Analyze citation impact
   summary(analysis$references_oa$cited_by_count)
 }
-#>     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-#>     93.0    279.5   1712.5  11102.4   4573.8 110356.0
+#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
+#>      94     208    1012   11844    5008  113700
 ```
 
 ### Citations by section
