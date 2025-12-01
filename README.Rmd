@@ -476,7 +476,7 @@ openalexR::oa_apikey("your-api-key-here")
 If you use this package in your research, please cite:
 
 ```         
-Massimo Aria (2025). contentanalysis: Scientific Content and Citation Analysis from PDF Documents.
+Massimo Aria & Corrado Cuccurullo (2025). contentanalysis: Scientific Content and Citation Analysis from PDF Documents.
 R package version 0.2.0.
 https://doi.org/10.32614/CRAN.package.contentanalysis
 ```
