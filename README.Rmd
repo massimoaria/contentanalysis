@@ -477,8 +477,8 @@ If you use this package in your research, please cite:
 
 ```         
 Massimo Aria (2025). contentanalysis: Scientific Content and Citation Analysis from PDF Documents.
-R package version 0.1.0.
-https://github.com/massimoaria/contentanalysis
+R package version 0.2.0.
+https://doi.org/10.32614/CRAN.package.contentanalysis
 ```
 
 ## License

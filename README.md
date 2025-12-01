@@ -226,7 +226,7 @@ analysis <- analyze_scientific_content(
 #> Attempting to retrieve references from CrossRef...
 #> Successfully retrieved 33 references from CrossRef
 #> Fetching Open Access metadata for 14 DOIs from OpenAlex...
-#> Successfully retrieved metadata for 13 references from OpenAlex
+#> Successfully retrieved metadata for 12 references from OpenAlex
 ```
 
 This single function call:
@@ -586,8 +586,8 @@ if (!is.null(analysis$references_oa)) {
   # Analyze citation impact
   summary(analysis$references_oa$cited_by_count)
 }
-#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#>      94     208    1012   11844    5008  113700
+#>     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+#>     94.0    205.5   1089.0  12844.9   7064.2 114163.0
 ```
 
 ### Citations by section
@@ -729,8 +729,8 @@ visNetwork, openalexR
 If you use this package in your research, please cite:
 
     Massimo Aria (2025). contentanalysis: Scientific Content and Citation Analysis from PDF Documents.
-    R package version 0.1.0.
-    https://github.com/massimoaria/contentanalysis
+    R package version 0.2.0.
+    https://doi.org/10.32614/CRAN.package.contentanalysis
 
 ## License
 
