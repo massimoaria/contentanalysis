@@ -8,7 +8,7 @@ gemini_content_ai(
   image = NULL,
   docs = NULL,
   prompt = "Explain these images",
-  model = "2.0-flash",
+  model = "2.5-flash",
   image_type = "png",
   retry_503 = 5,
   api_key = NULL,
@@ -23,8 +23,8 @@ gemini_content_ai(
 \item{prompt}{Character. The prompt/instruction for the AI model.
 Default is "Explain these images".}
 
-\item{model}{Character. The Gemini model version to use. Default is "2.0-flash".
-Options include "1.5-flash", "2.0-flash", "2.5-flash", etc.}
+\item{model}{Character. The Gemini model version to use. Default is "2.5-flash".
+Options include "2.5-flash", etc.}
 
 \item{image_type}{Character. The image MIME type. Default is "png".}
 

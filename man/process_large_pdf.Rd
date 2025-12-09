@@ -8,7 +8,7 @@ process_large_pdf(
   pdf_path,
   api_key,
   pages_per_chunk = 4,
-  model = c("1.5-flash", "2.0-flash", "2.5-flash")
+  model = c("2.5-flash", "2.5-flash-lite")
 )
 }
 \arguments{
@@ -20,7 +20,7 @@ process_large_pdf(
 Lower values may help with very dense documents or API rate limits.}
 
 \item{model}{Character. The Gemini model version to use. Options are:
-"1.5-flash", "2.0-flash", "2.5-flash". Default is "2.0-flash".}
+"2.5-flash" and "2.5-flash-lite. Default is "2.5-flash".}
 }
 \value{
 List of character vectors, one element per chunk, containing the extracted

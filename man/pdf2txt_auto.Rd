@@ -12,7 +12,7 @@ pdf2txt_auto(
   normalize_refs = TRUE,
   citation_type = c("none", "numeric_superscript", "numeric_bracketed", "author_year"),
   enable_ai_support = FALSE,
-  ai_model = "2.0-flash",
+  ai_model = "2.5-flash",
   api_key = NULL
 )
 }
@@ -46,7 +46,7 @@ This parameter helps avoid false positives in citation detection. Only specify
 Google Gemini API. Default is FALSE.}
 
 \item{ai_model}{Character. The Gemini model version to use for AI processing.
-Default is "2.0-flash". See \code{\link{process_large_pdf}} for available models.}
+Default is "2.5-flash". See \code{\link{process_large_pdf}} for available models.}
 
 \item{api_key}{Character or NULL. Google Gemini API key. If NULL, the function
 attempts to read from the \code{GEMINI_API_KEY} environment variable.}
@@ -107,7 +107,7 @@ doc <- pdf2txt_auto(
 doc <- pdf2txt_auto(
   "paper.pdf",
   enable_ai_support = TRUE,
-  ai_model = "2.0-flash",
+  ai_model = "2.5-flash",
   api_key = Sys.getenv("GEMINI_API_KEY")
 )
 
