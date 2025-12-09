@@ -8,8 +8,8 @@
 #' @param docs Character vector. Path(s) to document file(s) to be processed. Default is NULL.
 #' @param prompt Character. The prompt/instruction for the AI model.
 #'   Default is "Explain these images".
-#' @param model Character. The Gemini model version to use. Default is "2.0-flash".
-#'   Options include "1.5-flash", "2.0-flash", "2.5-flash", etc.
+#' @param model Character. The Gemini model version to use. Default is "2.5-flash".
+#'   Options include "2.5-flash", etc.
 #' @param image_type Character. The image MIME type. Default is "png".
 #' @param retry_503 Integer. Number of retry attempts for HTTP 503 errors. Default is 5.
 #' @param api_key Character. Google Gemini API key. If NULL, uses the
@@ -68,7 +68,7 @@ gemini_content_ai <- function(
   image = NULL,
   docs = NULL,
   prompt = "Explain these images",
-  model = "2.0-flash",
+  model = "2.5-flash",
   image_type = "png",
   retry_503 = 5,
   api_key = NULL,
@@ -329,7 +329,7 @@ gemini_content_ai <- function(
 #' @param pages_per_chunk Integer. Number of pages to include in each chunk. Default is 4.
 #'   Lower values may help with very dense documents or API rate limits.
 #' @param model Character. The Gemini model version to use. Options are:
-#'   "1.5-flash", "2.0-flash", "2.5-flash". Default is "2.0-flash".
+#'  "2.5-flash" and "2.5-flash-lite. Default is "2.5-flash".
 #'
 #' @return List of character vectors, one element per chunk, containing the extracted
 #'   and formatted text in markdown format. Returns NULL if processing fails.
@@ -401,7 +401,7 @@ process_large_pdf <- function(
   pdf_path,
   api_key,
   pages_per_chunk = 4,
-  model = c("1.5-flash", "2.0-flash", "2.5-flash")
+  model = c("2.5-flash", "2.5-flash-lite")
 ) {
   # Wrap entire function in tryCatch
   tryCatch(

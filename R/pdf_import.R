@@ -555,7 +555,7 @@ pdf2txt_multicolumn_safe <- function(
 #' @param enable_ai_support Logical. If TRUE, enables AI-enhanced text extraction using
 #'   Google Gemini API. Default is FALSE.
 #' @param ai_model Character. The Gemini model version to use for AI processing.
-#'   Default is "2.0-flash". See \code{\link{process_large_pdf}} for available models.
+#'   Default is "2.5-flash". See \code{\link{process_large_pdf}} for available models.
 #' @param api_key Character or NULL. Google Gemini API key. If NULL, the function
 #'   attempts to read from the \code{GEMINI_API_KEY} environment variable.
 #'
@@ -610,7 +610,7 @@ pdf2txt_multicolumn_safe <- function(
 #' doc <- pdf2txt_auto(
 #'   "paper.pdf",
 #'   enable_ai_support = TRUE,
-#'   ai_model = "2.0-flash",
+#'   ai_model = "2.5-flash",
 #'   api_key = Sys.getenv("GEMINI_API_KEY")
 #' )
 #'
@@ -652,7 +652,7 @@ pdf2txt_auto <- function(
     "author_year"
   ),
   enable_ai_support = FALSE,
-  ai_model = "2.0-flash",
+  ai_model = "2.5-flash",
   api_key = NULL
 ) {
   # Validate citation_type parameter
