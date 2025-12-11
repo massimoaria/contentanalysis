@@ -404,8 +404,6 @@ clean_text_encoding <- function(text) {
   # Vectorized operations
   # Replace common Unicode characters with ASCII equivalents
   text <- gsub("\u2018|\u2019", "'", text) # Smart single quotes
-  text <- gsub("\u0080\u0099", "'", text) # Curly apostrophe (UTF-8 bytes)
-  text <- gsub("â\u0080\u0099", "'", text) # Another encoding of apostrophe
   text <- gsub("\u201c|\u201d", '"', text) # Smart double quotes
   text <- gsub("\u2013|\u2014", "-", text) # En-dash and em-dash
   text <- gsub("\u2026", "...", text) # Ellipsis
