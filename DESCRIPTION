@@ -1,6 +1,6 @@
 Package: contentanalysis
 Title: Scientific Content and Citation Analysis from PDF Documents
-Version: 0.2.0.900
+Version: 0.2.1
 Authors@R: c(
     person(given = "Massimo",
            family = "Aria",
