@@ -1,3 +1,5 @@
+# contentanalysis (development version)
+
 # contentanalysis 0.2.1
 
 * Improved reference matching by normalizing first author surnames
