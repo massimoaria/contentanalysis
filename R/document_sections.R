@@ -1,3 +1,20 @@
+#' Normalize Unicode ligatures to ASCII equivalents
+#'
+#' @param x Character string to normalize
+#'
+#' @return Character string with ligatures replaced
+#'
+#' @keywords internal
+#' @noRd
+normalize_ligatures <- function(x) {
+  x <- gsub("\ufb04", "ffl", x)
+  x <- gsub("\ufb03", "ffi", x)
+  x <- gsub("\ufb02", "fl", x)
+  x <- gsub("\ufb01", "fi", x)
+  x <- gsub("\ufb00", "ff", x)
+  x
+}
+
 #' Extract titles from PDF table of contents
 #'
 #' @param toc_node List object from pdftools::pdf_toc()
@@ -58,6 +75,9 @@ extract_all_titles <- function(toc_node) {
 #' @importFrom pdftools pdf_toc
 split_into_sections <- function(text, file_path = NULL) {
 
+  # Normalize ligatures in text before any matching
+  text <- normalize_ligatures(text)
+
   common_sections <- c(
     "Abstract", "Introduction", "Related work", "Related Work",
     "Background", "Literature review", "Literature Review",
@@ -78,6 +98,15 @@ split_into_sections <- function(text, file_path = NULL) {
         section_names <- extract_all_titles(toc)
         section_names <- section_names[nchar(section_names) > 0]
         if (length(section_names) > 0) {
+          # Strip leading number prefixes (e.g. "1 Introduction" -> "Introduction")
+          section_names <- sub("^[0-9]+(\\.[0-9]+)*\\s+", "", section_names)
+          # Normalize ligatures in TOC names
+          section_names <- normalize_ligatures(section_names)
+          # Filter out very long entries (likely paper title)
+          section_names <- section_names[nchar(section_names) <= 80]
+          # Remove empty and deduplicate
+          section_names <- section_names[nchar(section_names) > 0]
+          section_names <- unique(section_names)
           message(sprintf("Using %d sections from PDF table of contents", length(section_names)))
         } else {
           section_names <- NULL
@@ -94,10 +123,29 @@ split_into_sections <- function(text, file_path = NULL) {
   }
 
   sections_found <- list()
+  unmatched <- character()
 
+  # Pass 1 (strict): require \n\n before section name
   for (section in section_names) {
     section_escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", section, perl = TRUE)
-    pattern <- paste0("\\n\\n(?:[0-9]+(?:\\.[0-9]+)*\\.\\n\\n)?", section_escaped, "(?=\\s)")
+    pattern <- paste0("\\n\\n(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s*\\n\\n)?", section_escaped, "(?=\\s)")
+    match <- regexpr(pattern, text, ignore.case = TRUE, perl = TRUE)
+
+    if (match > 0) {
+      match_length <- attr(match, "match.length")
+      sections_found[[section]] <- list(
+        start = as.integer(match),
+        length = match_length
+      )
+    } else {
+      unmatched <- c(unmatched, section)
+    }
+  }
+
+  # Pass 2 (relaxed): allow single \n + optional number prefix inline
+  for (section in unmatched) {
+    section_escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", section, perl = TRUE)
+    pattern <- paste0("(?:\\n)\\s*(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s+)?", section_escaped, "(?=[\\s:])")
     match <- regexpr(pattern, text, ignore.case = TRUE, perl = TRUE)
 
     if (match > 0) {
