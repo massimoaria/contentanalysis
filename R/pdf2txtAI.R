@@ -314,7 +314,7 @@ gemini_content_ai <- function(
     # Successful response
     candidates <- httr2::resp_body_json(resp)$candidates
     outputs <- unlist(lapply(candidates, \(c) c$content$parts))
-    return(outputs)
+    return(outputs[1])
   }
 }
 
