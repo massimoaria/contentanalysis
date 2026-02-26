@@ -1,18 +1,119 @@
-#' Normalize Unicode ligatures to ASCII equivalents
+#' Normalize Unicode ligatures and special characters to ASCII equivalents
 #'
 #' @param x Character string to normalize
 #'
-#' @return Character string with ligatures replaced
+#' @return Character string with ligatures and special characters replaced
 #'
 #' @keywords internal
 #' @noRd
 normalize_ligatures <- function(x) {
+  # Ligatures
   x <- gsub("\ufb04", "ffl", x)
   x <- gsub("\ufb03", "ffi", x)
   x <- gsub("\ufb02", "fl", x)
   x <- gsub("\ufb01", "fi", x)
   x <- gsub("\ufb00", "ff", x)
+  # Non-breaking spaces
+  x <- gsub("\u00a0", " ", x)
   x
+}
+
+#' Collapse letter-spaced uppercase headers to normal words
+#'
+#' Some journal styles (e.g. Wiley) render section headers with decorative
+#' letter spacing: "I NTRO D U C TI O N" instead of "INTRODUCTION".
+#' This function detects and collapses such sequences.
+#'
+#' @param text Character string to normalize
+#'
+#' @return Character string with spaced headers collapsed
+#'
+#' @keywords internal
+#' @noRd
+normalize_spaced_headers <- function(text) {
+  # Match sequences of uppercase letter groups (1-4 chars) separated by single
+  # spaces, with at least 4 groups — a hallmark of letter-spaced headers
+  pattern <- "(?<![A-Za-z])([A-Z]{1,4}(?: [A-Z]{1,4}){3,})(?![A-Za-z])"
+  m <- gregexpr(pattern, text, perl = TRUE)
+  if (m[[1]][1] == -1) return(text)
+
+  matches <- regmatches(text, m)[[1]]
+  replacements <- character(length(matches))
+
+  for (i in seq_along(matches)) {
+    groups <- strsplit(matches[i], " ")[[1]]
+    short_ratio <- sum(nchar(groups) <= 2) / length(groups)
+    collapsed <- paste(groups, collapse = "")
+    # Only collapse if majority of groups are short (letter-spaced) and result
+    # is long enough to be a real section name (filters out "TABLE" etc.)
+    if (short_ratio >= 0.5 && nchar(collapsed) >= 7) {
+      replacements[i] <- collapsed
+    } else {
+      replacements[i] <- matches[i]
+    }
+  }
+
+  regmatches(text, m) <- list(replacements)
+
+  # Insert line breaks before pipe-separated section headers that follow a
+  # sentence end (e.g. "in OLPs. 2 | METHODS" -> "in OLPs.\n\n2 | METHODS")
+  text <- gsub("(?<=\\.)\\s+(?=[0-9]+(?:\\.[0-9]+)*\\s*\\|\\s*[A-Z])",
+               "\n\n", text, perl = TRUE)
+
+  text
+}
+
+#' Strip repeated running headers inserted by journals at page breaks
+#'
+#' Many journals insert a running header (journal name, volume, issue) at each
+#' page break. These consume the \\n\\n boundary that section headers need.
+#' This function detects and removes such repeated headers.
+#'
+#' @param text Character string to clean
+#'
+#' @return Character string with running headers removed
+#'
+#' @keywords internal
+#' @noRd
+strip_running_headers <- function(text) {
+  # Find all page_number\n\n patterns
+  m <- gregexpr("[0-9]+\n\n", text, perl = TRUE)
+  if (m[[1]][1] == -1) return(text)
+
+  positions <- as.integer(m[[1]])
+  lengths <- attr(m[[1]], "match.length")
+
+  # Extract text after each match (up to 200 chars)
+  after_texts <- character(length(positions))
+  for (i in seq_along(positions)) {
+    start <- positions[i] + lengths[i]
+    end <- min(nchar(text), start + 199L)
+    after_texts[i] <- substr(text, start, end)
+  }
+
+  # Group texts by short prefix (40 chars) to find candidate running headers
+  short_prefixes <- substr(after_texts, 1L, 40L)
+  prefix_groups <- split(seq_along(after_texts), short_prefixes)
+  largest_group <- prefix_groups[[which.max(lengths(prefix_groups))]]
+
+  if (length(largest_group) >= 3L) {
+    # Extend prefix as far as all group members agree (find exact header length)
+    group_texts <- after_texts[largest_group]
+    max_len <- min(nchar(group_texts))
+    prefix_len <- 40L
+    for (i in 41L:max_len) {
+      chars <- substr(group_texts, i, i)
+      if (length(unique(chars)) > 1L) break
+      prefix_len <- i
+    }
+    header <- substr(group_texts[1L], 1L, prefix_len)
+    escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", header, perl = TRUE)
+    text <- gsub(paste0("[0-9]+\\n\\n", escaped), "\n\n", text, perl = TRUE)
+    message(sprintf("Stripped running header (%d occurrences, %d chars)",
+                    length(largest_group), prefix_len))
+  }
+
+  text
 }
 
 #' Extract titles from PDF table of contents
@@ -75,8 +176,10 @@ extract_all_titles <- function(toc_node) {
 #' @importFrom pdftools pdf_toc
 split_into_sections <- function(text, file_path = NULL) {
 
-  # Normalize ligatures in text before any matching
+  # Normalize text before any matching
   text <- normalize_ligatures(text)
+  text <- strip_running_headers(text)
+  text <- normalize_spaced_headers(text)
 
   common_sections <- c(
     "Abstract", "Introduction", "Related work", "Related Work",
@@ -128,7 +231,7 @@ split_into_sections <- function(text, file_path = NULL) {
   # Pass 1 (strict): require \n\n before section name
   for (section in section_names) {
     section_escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", section, perl = TRUE)
-    pattern <- paste0("\\n\\n(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s*\\n\\n)?", section_escaped, "(?=\\s)")
+    pattern <- paste0("\\n\\n(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s*(?:\\n\\n|\\|\\s*))?", section_escaped, "(?=[\\s.:])")
     match <- regexpr(pattern, text, ignore.case = TRUE, perl = TRUE)
 
     if (match > 0) {
@@ -145,7 +248,7 @@ split_into_sections <- function(text, file_path = NULL) {
   # Pass 2 (relaxed): allow single \n + optional number prefix inline
   for (section in unmatched) {
     section_escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", section, perl = TRUE)
-    pattern <- paste0("(?:\\n)\\s*(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s+)?", section_escaped, "(?=[\\s:])")
+    pattern <- paste0("(?:\\n)\\s*(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s*\\|?\\s+)?", section_escaped, "(?=[\\s.:])")
     match <- regexpr(pattern, text, ignore.case = TRUE, perl = TRUE)
 
     if (match > 0) {
@@ -154,6 +257,33 @@ split_into_sections <- function(text, file_path = NULL) {
         start = as.integer(match),
         length = match_length
       )
+    }
+  }
+
+  # Fallback: if TOC names matched nothing, retry with common section names
+  if (length(sections_found) == 0 && !identical(section_names, common_sections)) {
+    message("TOC section names matched nothing in text; retrying with common section names")
+    section_names <- common_sections
+    unmatched <- character()
+
+    for (section in section_names) {
+      section_escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", section, perl = TRUE)
+      pattern <- paste0("\\n\\n(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s*(?:\\n\\n|\\|\\s*))?", section_escaped, "(?=[\\s.:])")
+      match <- regexpr(pattern, text, ignore.case = TRUE, perl = TRUE)
+      if (match > 0) {
+        sections_found[[section]] <- list(start = as.integer(match), length = attr(match, "match.length"))
+      } else {
+        unmatched <- c(unmatched, section)
+      }
+    }
+
+    for (section in unmatched) {
+      section_escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", section, perl = TRUE)
+      pattern <- paste0("(?:\\n)\\s*(?:[0-9]+(?:\\.[0-9]+)*\\.?\\s*\\|?\\s+)?", section_escaped, "(?=[\\s.:])")
+      match <- regexpr(pattern, text, ignore.case = TRUE, perl = TRUE)
+      if (match > 0) {
+        sections_found[[section]] <- list(start = as.integer(match), length = attr(match, "match.length"))
+      }
     }
   }
 
