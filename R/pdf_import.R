@@ -1,7 +1,26 @@
+#' Compute adaptive Y-tolerance from PDF word coordinates
+#'
+#' @param y_values Numeric vector of Y coordinates from pdf_data
+#' @return Numeric tolerance value
+#' @keywords internal
+#' @noRd
+compute_y_tolerance <- function(y_values) {
+  if (length(y_values) < 10) return(4)
+  sorted_y <- sort(unique(y_values))
+  gaps <- diff(sorted_y)
+  small_gaps <- gaps[gaps <= quantile(gaps, 0.5)]
+  if (length(small_gaps) == 0) return(4)
+  tol <- max(ceiling(median(small_gaps) * 1.5), 2)
+  min(tol, 8)
+}
+
+
 #' Reconstruct text from PDF data with structure preservation
 #'
 #' @param column_data Data frame from pdftools::pdf_data() for a column/page
 #' @param preserve_structure Logical. Preserve paragraph breaks and structure
+#' @param y_tolerance Numeric or NULL. Y-coordinate tolerance for line grouping.
+#'   If NULL, computed automatically from the data.
 #'
 #' @return Character string with reconstructed text
 #'
@@ -9,14 +28,15 @@
 #' @noRd
 reconstruct_text_structured <- function(
   column_data,
-  preserve_structure = TRUE
+  preserve_structure = TRUE,
+  y_tolerance = NULL
 ) {
   if (nrow(column_data) == 0) {
     return("")
   }
 
-  tolerance <- 4
-  column_data$line <- round(column_data$y / tolerance) * tolerance
+  if (is.null(y_tolerance)) y_tolerance <- compute_y_tolerance(column_data$y)
+  column_data$line <- round(column_data$y / y_tolerance) * y_tolerance
 
   available_cols <- names(column_data)
 
@@ -207,6 +227,75 @@ convert_superscript_citations <- function(text) {
 }
 
 
+#' Find the gutter x-position between two column centers
+#'
+#' @param x_positions Numeric vector of x coordinates
+#' @param centers Numeric vector of two cluster centers
+#' @return Numeric gutter x-position
+#' @keywords internal
+#' @noRd
+find_gutter_x <- function(x_positions, centers) {
+  left_center <- min(centers)
+  right_center <- max(centers)
+  # Only consider x values between the centers (where the gutter is)
+  mid_x <- x_positions[x_positions >= left_center & x_positions <= right_center]
+  if (length(mid_x) < 2) return(mean(centers))
+  breaks <- seq(left_center, right_center, length.out = 50)
+  counts <- graphics::hist(mid_x, breaks = breaks, plot = FALSE)$counts
+  gutter_idx <- which.min(counts)
+  breaks[gutter_idx + 1]
+}
+
+
+#' Validate that a column split produces real columns
+#'
+#' @param page_data Data frame with x, y columns
+#' @param threshold Numeric x-coordinate threshold
+#' @return Logical TRUE if valid two-column layout
+#' @keywords internal
+#' @noRd
+validate_columns <- function(page_data, threshold) {
+  left <- page_data[page_data$x < threshold, ]
+  right <- page_data[page_data$x >= threshold, ]
+
+  if (nrow(left) < 5 || nrow(right) < 5) return(FALSE)
+
+  # Check Y-range overlap: columns must share vertical space
+  left_range <- range(left$y)
+  right_range <- range(right$y)
+  overlap <- min(left_range[2], right_range[2]) - max(left_range[1], right_range[1])
+  total <- max(left_range[2], right_range[2]) - min(left_range[1], right_range[1])
+  if (total == 0 || overlap / total < 0.3) return(FALSE)
+
+  # Check that both sides have multiple lines
+  y_tol <- compute_y_tolerance(page_data$y)
+  left_lines <- length(unique(round(left$y / y_tol) * y_tol))
+  right_lines <- length(unique(round(right$y / y_tol) * y_tol))
+  if (left_lines < 3 || right_lines < 3) return(FALSE)
+
+  TRUE
+}
+
+
+#' Detect column interleaving in extracted text
+#'
+#' @param text Character string of extracted text
+#' @return Logical TRUE if interleaving is detected
+#' @keywords internal
+#' @noRd
+detect_interleaving <- function(text) {
+  sentences <- unlist(strsplit(text, "(?<=[.!?])\\s+", perl = TRUE))
+  sentences <- sentences[nchar(sentences) > 20]
+  if (length(sentences) < 10) return(FALSE)
+
+  median_len <- median(nchar(sentences))
+  short_ratio <- mean(nchar(sentences) < median_len * 0.3)
+  lower_start_ratio <- mean(grepl("^[a-z]", sentences))
+
+  short_ratio > 0.4 || lower_start_ratio > 0.3
+}
+
+
 #' Extract text from multi-column PDF with structure preservation
 #'
 #' @description
@@ -258,7 +347,7 @@ convert_superscript_citations <- function(text) {
 #'
 #' @export
 #' @importFrom pdftools pdf_data pdf_length pdf_text poppler_config
-#' @importFrom stats kmeans
+#' @importFrom stats kmeans quantile
 pdf2txt_multicolumn_safe <- function(
   file,
   n_columns = NULL,
@@ -302,13 +391,16 @@ pdf2txt_multicolumn_safe <- function(
 
         if (!is.null(n_columns)) {
           if (n_columns == 1) {
+            y_tol <- compute_y_tolerance(page_data$y)
             page_data <- page_data[order(page_data$y, page_data$x), ]
             page_text <- reconstruct_text_structured(
               page_data,
-              preserve_structure
+              preserve_structure,
+              y_tolerance = y_tol
             )
           } else if (n_columns >= 2) {
             x_positions <- page_data$x
+            y_tol <- compute_y_tolerance(page_data$y)
 
             tryCatch(
               {
@@ -321,36 +413,56 @@ pdf2txt_multicolumn_safe <- function(
 
                 thresholds <- numeric(n_columns - 1)
                 for (i in 1:(n_columns - 1)) {
-                  thresholds[i] <- mean(c(
-                    cluster_centers[i],
-                    cluster_centers[i + 1]
-                  ))
+                  thresholds[i] <- find_gutter_x(
+                    x_positions,
+                    c(cluster_centers[i], cluster_centers[i + 1])
+                  )
                 }
 
-                columns <- list()
-                page_data$column <- cut(
-                  page_data$x,
-                  breaks = c(-Inf, thresholds, Inf),
-                  labels = FALSE
-                )
-
-                for (col in 1:n_columns) {
-                  col_data <- page_data[page_data$column == col, ]
-                  if (nrow(col_data) > 0) {
-                    col_data <- col_data[order(col_data$y, col_data$x), ]
-                    columns[[col]] <- reconstruct_text_structured(
-                      col_data,
-                      preserve_structure
-                    )
-                  } else {
-                    columns[[col]] <- ""
+                # Validate column split
+                valid_columns <- TRUE
+                for (i in seq_along(thresholds)) {
+                  if (!validate_columns(page_data, thresholds[i])) {
+                    valid_columns <- FALSE
+                    break
                   }
                 }
 
-                if (preserve_structure) {
-                  page_text <- paste(columns, collapse = "\n\n")
+                if (!valid_columns) {
+                  # Fall back to single-column for this page
+                  page_data <- page_data[order(page_data$y, page_data$x), ]
+                  page_text <- reconstruct_text_structured(
+                    page_data,
+                    preserve_structure,
+                    y_tolerance = y_tol
+                  )
                 } else {
-                  page_text <- paste(columns, collapse = " ")
+                  columns <- list()
+                  page_data$column <- cut(
+                    page_data$x,
+                    breaks = c(-Inf, thresholds, Inf),
+                    labels = FALSE
+                  )
+
+                  for (col in 1:n_columns) {
+                    col_data <- page_data[page_data$column == col, ]
+                    if (nrow(col_data) > 0) {
+                      col_data <- col_data[order(col_data$y, col_data$x), ]
+                      columns[[col]] <- reconstruct_text_structured(
+                        col_data,
+                        preserve_structure,
+                        y_tolerance = y_tol
+                      )
+                    } else {
+                      columns[[col]] <- ""
+                    }
+                  }
+
+                  if (preserve_structure) {
+                    page_text <- paste(columns, collapse = "\n\n")
+                  } else {
+                    page_text <- paste(columns, collapse = " ")
+                  }
                 }
               },
               error = function(e) {
@@ -379,7 +491,8 @@ pdf2txt_multicolumn_safe <- function(
                     col_data <- col_data[order(col_data$y, col_data$x), ]
                     columns[[col]] <- reconstruct_text_structured(
                       col_data,
-                      preserve_structure
+                      preserve_structure,
+                      y_tolerance = y_tol
                     )
                   }
                 }
@@ -393,6 +506,7 @@ pdf2txt_multicolumn_safe <- function(
           }
         } else {
           # Automatic column detection
+          y_tol <- compute_y_tolerance(page_data$y)
           if (is.null(column_threshold)) {
             x_positions <- page_data$x
             if (length(unique(x_positions)) > 20) {
@@ -400,7 +514,7 @@ pdf2txt_multicolumn_safe <- function(
                 {
                   clusters <- kmeans(x_positions, centers = 2, nstart = 10)
                   cluster_centers <- sort(clusters$centers[, 1])
-                  column_threshold <- mean(cluster_centers)
+                  column_threshold <- find_gutter_x(x_positions, cluster_centers)
                 },
                 error = function(e) {
                   column_threshold <- (max(page_data$x) + min(page_data$x)) / 2
@@ -411,18 +525,21 @@ pdf2txt_multicolumn_safe <- function(
             }
           }
 
-          left_column <- page_data[page_data$x < column_threshold, ]
-          right_column <- page_data[page_data$x >= column_threshold, ]
+          # Validate before treating as two-column
+          is_two_col <- validate_columns(page_data, column_threshold)
 
-          # Check if we truly have two columns
-          if (nrow(left_column) < 5 || nrow(right_column) < 5) {
+          if (!is_two_col) {
             # Single column layout
             page_data <- page_data[order(page_data$y, page_data$x), ]
             page_text <- reconstruct_text_structured(
               page_data,
-              preserve_structure
+              preserve_structure,
+              y_tolerance = y_tol
             )
           } else {
+            left_column <- page_data[page_data$x < column_threshold, ]
+            right_column <- page_data[page_data$x >= column_threshold, ]
+
             # Two-column layout
             left_column <- left_column[order(left_column$y, left_column$x), ]
             right_column <- right_column[
@@ -431,11 +548,13 @@ pdf2txt_multicolumn_safe <- function(
 
             left_text <- reconstruct_text_structured(
               left_column,
-              preserve_structure
+              preserve_structure,
+              y_tolerance = y_tol
             )
             right_text <- reconstruct_text_structured(
               right_column,
-              preserve_structure
+              preserve_structure,
+              y_tolerance = y_tol
             )
 
             if (preserve_structure) {
@@ -447,6 +566,29 @@ pdf2txt_multicolumn_safe <- function(
         }
 
         all_text <- c(all_text, page_text)
+      }
+
+      # Check for interleaving if multi-column was used
+      if (!is.null(n_columns) && n_columns >= 2) {
+        combined_check <- paste(all_text, collapse = " ")
+        if (detect_interleaving(combined_check)) {
+          warning(
+            "Column interleaving detected; re-extracting as single column"
+          )
+          all_text <- c()
+          for (page_num in seq_along(data_list)) {
+            page_data <- data_list[[page_num]]
+            if (nrow(page_data) == 0) next
+            y_tol <- compute_y_tolerance(page_data$y)
+            page_data <- page_data[order(page_data$y, page_data$x), ]
+            page_text <- reconstruct_text_structured(
+              page_data,
+              preserve_structure,
+              y_tolerance = y_tol
+            )
+            all_text <- c(all_text, page_text)
+          }
+        }
       }
 
       # Combine all pages
