@@ -8,6 +8,7 @@ analyze_scientific_content(
   text,
   doi = NULL,
   mailto = NULL,
+  openalex_key = NULL,
   citation_type = c("all", "numeric_superscript", "numeric_bracketed", "author_year"),
   window_size = 10,
   min_word_length = 3,
@@ -26,6 +27,10 @@ analyze_scientific_content(
 \item{doi}{Character string or NULL. DOI for CrossRef reference retrieval.}
 
 \item{mailto}{Character string or NULL. Email for CrossRef API.}
+
+\item{openalex_key}{Character string or NULL. OpenAlex API key. If NULL (default),
+the function looks for the \code{OPENALEX_API_KEY} environment variable.
+Get a free key at \url{https://openalex.org/}.}
 
 \item{citation_type}{Character string. Type of citations to extract:
 \itemize{

@@ -472,8 +472,8 @@ match_citations_to_references <- function(citations_df, references_df) {
       # 4. If still no match, try fuzzy matching with substring
       if (nrow(author_matches) == 0) {
         fuzzy_matches <- year_matches %>%
+          dplyr::filter(!is.na(ref_first_author_surname)) %>%
           dplyr::filter(
-            !is.na(ref_first_author_surname),
             stringr::str_detect(
               ref_first_author_surname,
               cite$cite_author_normalized

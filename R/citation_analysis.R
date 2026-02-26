@@ -343,6 +343,9 @@ map_citations_to_segments <- function(
 #' @param text Character string or named list. Document text or text with sections.
 #' @param doi Character string or NULL. DOI for CrossRef reference retrieval.
 #' @param mailto Character string or NULL. Email for CrossRef API.
+#' @param openalex_key Character string or NULL. OpenAlex API key. If NULL (default),
+#'   the function looks for the \code{OPENALEX_API_KEY} environment variable.
+#'   Get a free key at \url{https://openalex.org/}.
 #' @param citation_type Character string. Type of citations to extract:
 #'   \itemize{
 #'     \item "all": Extract all citation types (default)
@@ -423,6 +426,7 @@ analyze_scientific_content <- function(
   text,
   doi = NULL,
   mailto = NULL,
+  openalex_key = NULL,
   citation_type = c(
     "all",
     "numeric_superscript",
@@ -439,6 +443,17 @@ analyze_scientific_content <- function(
   use_sections_for_citations = "auto",
   n_segments_citations = 10
 ) {
+  # Configure OpenAlex API key
+  # Priority: 1) explicit parameter, 2) OPENALEX_API_KEY env var, 3) openalexR defaults
+  if (!is.null(openalex_key) && nchar(openalex_key) > 0) {
+    options(openalexR.apikey = openalex_key)
+  } else {
+    key <- Sys.getenv("OPENALEX_API_KEY", unset = "")
+    if (nchar(key) > 0) {
+      options(openalexR.apikey = key)
+    }
+  }
+
   # Validate citation_type parameter
   citation_type <- match.arg(citation_type)
 
