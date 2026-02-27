@@ -67,5 +67,12 @@ utils::globalVariables(c(
   "ref_journal",
   "citation_numbers",
   "get_surname",
-  "ref_first_author_normalized_no_accents"
+  "ref_first_author_normalized_no_accents",
+  "tf",
+  "idf",
+  "tf_idf",
+  "ref_title",
+  "ref_title_clean",
+  "top_terms",
+  "n_references"
 ))
