@@ -158,6 +158,43 @@ reconstruct_text_structured <- function(
 #' @keywords internal
 #' @noRd
 convert_superscript_citations <- function(text) {
+  # Non-citation words: common words that precede numbers but are NOT citations
+  non_cite <- paste0(
+    "\\b(?:page|pages|table|tables|figure|figures|fig|figs|",
+    "chapter|chapters|section|sections|step|steps|item|items|",
+    "part|parts|equation|equations|eq|eqs|line|lines|row|rows|",
+    "column|columns|volume|vol|issue|number|no|sample|group|groups|",
+    "stage|stages|grade|grades|level|levels|type|types|model|models|",
+    "trial|trials|wave|waves|phase|phases|version|day|days|",
+    "week|weeks|month|months|year|years|age|aged|appendix|panel|",
+    "supplement|experiment|experiments|criterion|criteria|factor|factors|",
+    "dimension|dimensions|category|categories|cluster|clusters|",
+    "component|components|participant|participants|subject|subjects|",
+    "patient|patients|respondent|respondents|hypothesis|hypotheses)\\s+"
+  )
+
+  # Step 0: Convert Unicode superscript digits to [n] format
+  # Must run before any other pattern
+  unicode_supers <- c(
+    "\u00b9" = "1", "\u00b2" = "2", "\u00b3" = "3",
+    "\u2074" = "4", "\u2075" = "5", "\u2076" = "6",
+    "\u2077" = "7", "\u2078" = "8", "\u2079" = "9", "\u2070" = "0"
+  )
+  # Build alternation of all unicode superscript chars
+  super_chars <- paste0("[", paste0(names(unicode_supers), collapse = ""), "]")
+  # Replace sequences of unicode superscripts with [n] format
+  text <- gsub(
+    paste0("(", super_chars, "+)"),
+    "SUPER_PLACEHOLDER\\1",
+    text,
+    perl = TRUE
+  )
+  # Convert individual chars inside placeholders
+  for (uc in names(unicode_supers)) {
+    text <- gsub(uc, unicode_supers[uc], text, fixed = TRUE)
+  }
+  text <- gsub("SUPER_PLACEHOLDER(\\d+)", "[\\1]", text, perl = TRUE)
+
   # Pattern 1: Single number after punctuation at end of sentence
   # Example: "...as shown before. 15 The next..." -> "...as shown before.[15] The next..."
   text <- gsub(
@@ -167,20 +204,23 @@ convert_superscript_citations <- function(text) {
     perl = TRUE
   )
 
-  # Pattern 2: Single or multiple numbers after a word (no space or minimal space)
-  # Example: "study 5" or "study5" -> "study[5]"
-  # Handles: single numbers, comma-separated, ranges with dash
+  # Pattern 3 (before Pattern 2): Multiple citation numbers with various separators
+  # Example: "evidence 1, 2, 3" -> "evidence[1,2,3]"
+  # Runs first so comma-separated groups are captured as a unit
   text <- gsub(
-    "([a-z])\\s+(\\d{1,3}(?:[,\\-]\\d{1,3})*)(?=\\s|[.,;!?]|$)",
+    paste0(non_cite, "\\d+(?:\\s*[,;]\\s*\\d+)+(*SKIP)(*FAIL)|",
+           "([a-z])\\s+(\\d{1,3}(?:\\s*[,;]\\s*\\d{1,3})+)(?=\\s|[.,;!?]|$)"),
     "\\1[\\2]",
     text,
     perl = TRUE
   )
 
-  # Pattern 3: Multiple citation numbers with various separators
-  # Example: "evidence 1, 2, 3" -> "evidence[1,2,3]"
+  # Pattern 2: Single or multiple numbers after a word (no space or minimal space)
+  # Example: "study 5" or "study5" -> "study[5]"
+  # Handles: single numbers, comma-separated, ranges with dash
   text <- gsub(
-    "([a-z])\\s+(\\d{1,3}(?:\\s*[,;]\\s*\\d{1,3})+)(?=\\s|[.,;!?]|$)",
+    paste0(non_cite, "\\d+(?:[,\\-]\\d+)*(*SKIP)(*FAIL)|",
+           "([a-z])\\s+(\\d{1,3}(?:[,\\-]\\d{1,3})*)(?=\\s|[.,;!?]|$)"),
     "\\1[\\2]",
     text,
     perl = TRUE
@@ -204,11 +244,23 @@ convert_superscript_citations <- function(text) {
     perl = TRUE
   )
 
-  # Clean up: remove extra spaces inside brackets
-  # Example: "[1, 2, 3]" -> "[1,2,3]"
+  # Pattern 7: Numbers at line start followed by uppercase (common in PDF extraction)
+  # Example: "\n15 The next..." -> "\n[15] The next..."
+  text <- gsub(
+    "(\\n)(\\d{1,3})\\s+([A-Z])",
+    "\\1[\\2] \\3",
+    text,
+    perl = TRUE
+  )
+
+  # Clean up: remove extra spaces inside brackets only
   text <- gsub("\\[\\s+", "[", text, perl = TRUE)
   text <- gsub("\\s+\\]", "]", text, perl = TRUE)
-  text <- gsub("\\s*,\\s*", ",", text, perl = TRUE)
+  # Normalize commas only inside [...] brackets using regmatches
+  m <- gregexpr("\\[[^]]+\\]", text)
+  brackets <- regmatches(text, m)
+  brackets <- lapply(brackets, function(b) gsub("\\s*,\\s*", ",", b))
+  regmatches(text, m) <- brackets
 
   # Clean up: convert "e" to "-" inside brackets (OCR artifact)
   text <- gsub("\\[(\\d+)e(\\d+)\\]", "[\\1-\\2]", text, perl = TRUE)
@@ -216,8 +268,23 @@ convert_superscript_citations <- function(text) {
   # Pattern 6: Handle cases where number appears at end of incomplete word
   # This catches cases where PDF extraction merged citation with word
   # Example: "studies15" -> "studies[15]"
+  # Non-citation word variant (no trailing \s+)
+  non_cite_no_space <- paste0(
+    "\\b(?:page|pages|table|tables|figure|figures|fig|figs|",
+    "chapter|chapters|section|sections|step|steps|item|items|",
+    "part|parts|equation|equations|eq|eqs|line|lines|row|rows|",
+    "column|columns|volume|vol|issue|number|no|sample|group|groups|",
+    "stage|stages|grade|grades|level|levels|type|types|model|models|",
+    "trial|trials|wave|waves|phase|phases|version|day|days|",
+    "week|weeks|month|months|year|years|age|aged|appendix|panel|",
+    "supplement|experiment|experiments|criterion|criteria|factor|factors|",
+    "dimension|dimensions|category|categories|cluster|clusters|",
+    "component|components|participant|participants|subject|subjects|",
+    "patient|patients|respondent|respondents|hypothesis|hypotheses)"
+  )
   text <- gsub(
-    "([a-z]{3,})(\\d{1,3})(?=\\s|[.,;!?]|$)",
+    paste0(non_cite_no_space, "\\d{1,3}(*SKIP)(*FAIL)|",
+           "([a-z]{3,})(\\d{1,3})(?=\\s|[.,;!?]|$)"),
     "\\1[\\2]",
     text,
     perl = TRUE

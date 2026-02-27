@@ -799,3 +799,73 @@ test_that("analyze_scientific_content handles many citations", {
 
   expect_gte(nrow(result$citations), 5)
 })
+
+# ============================================================================
+# FALSE POSITIVE / FALSE NEGATIVE TESTS
+# ============================================================================
+
+test_that("months are NOT extracted as citations", {
+  skip_on_cran()
+  skip_if_not_installed("tidytext")
+
+  text <- "In January (2020) the study began. Data collected in March (2021) was analyzed."
+
+  result <- analyze_scientific_content(text)
+
+  if (nrow(result$citations) > 0) {
+    expect_false(any(grepl("January", result$citations$citation_text)))
+    expect_false(any(grepl("March", result$citations$citation_text)))
+  }
+})
+
+test_that("et al without period is extracted", {
+  skip_on_cran()
+  skip_if_not_installed("tidytext")
+
+  text <- "Smith et al (2020) demonstrated the approach."
+
+  result <- analyze_scientific_content(text)
+
+  expect_true(nrow(result$citations) > 0)
+  expect_true(any(grepl("et al", result$citations$citation_text)))
+})
+
+test_that("in press and forthcoming citations are extracted", {
+  skip_on_cran()
+  skip_if_not_installed("tidytext")
+
+  text <- "Smith (in press) found that Jones et al. (forthcoming) confirmed."
+
+  result <- analyze_scientific_content(text)
+
+  expect_true(nrow(result$citations) > 0)
+  expect_true(any(grepl("in press", result$citations$citation_text)))
+  expect_true(any(grepl("forthcoming", result$citations$citation_text)))
+})
+
+test_that("page numbers in parenthetical citations are extracted", {
+  skip_on_cran()
+  skip_if_not_installed("tidytext")
+
+  text <- "The finding (Smith, 2020, p. 15) was confirmed by (Jones, 2021, pp. 20-25)."
+
+  result <- analyze_scientific_content(text)
+
+  expect_true(nrow(result$citations) > 0)
+  expect_true(any(grepl("p\\. 15", result$citations$citation_text)))
+})
+
+test_that("whitespace in bracketed citations is handled", {
+  skip_on_cran()
+  skip_if_not_installed("tidytext")
+
+  text <- "Previous work [ 1 ] and another study [ 2, 3 ] confirmed this."
+
+  result <- analyze_scientific_content(text)
+
+  if (nrow(result$citations) > 0) {
+    numbered <- result$citations %>%
+      dplyr::filter(grepl("numbered", citation_type))
+    expect_gte(nrow(numbered), 1)
+  }
+})

@@ -502,19 +502,23 @@ analyze_scientific_content <- function(
     narrative_four_authors_and = "[A-Z][A-Za-z'-]+,\\s*[A-Z][A-Za-z'-]+,\\s*[A-Z][A-Za-z'-]+,\\s*(?:and|&)\\s*[A-Z][A-Za-z'-]+\\s*\\(\\d{4}[a-z]?\\)",
     narrative_three_authors_and = "[A-Z][A-Za-z'-]+,\\s*[A-Z][A-Za-z'-]+,\\s*(?:and|&)\\s*[A-Z][A-Za-z'-]+\\s*\\(\\d{4}[a-z]?\\)",
     narrative_two_authors_and = "[A-Z][A-Za-z'-]+\\s+(?:and|&)\\s+[A-Z][A-Za-z'-]+\\s*\\(\\d{4}[a-z]?\\)",
-    narrative_etal = "[A-Z][A-Za-z'-]+(?:\\s*,\\s*[A-Z][A-Za-z'-]+)*(?:\\s*,?\\s*(?:and|&)?\\s*et\\s+al\\.)?\\s*\\(\\d{4}[a-z]?\\)",
+    narrative_etal = "[A-Z][A-Za-z'-]+(?:\\s*,\\s*[A-Z][A-Za-z'-]+)*(?:\\s*,?\\s*(?:and|&)?\\s*et\\s+al\\.?)?\\s*\\(\\d{4}[a-z]?\\)",
     narrative_multiple_authors = "[A-Z][A-Za-z'-]+(?:\\s*,\\s*[A-Z][A-Za-z'-]+)+(?:\\s*,\\s*&\\s*[A-Z][A-Za-z'-]+)?\\s*\\(\\d{4}[a-z]?\\)",
     narrative_single = "[A-Z][A-Za-z'-]+\\s*\\(\\d{4}[a-z]?\\)",
     multiple_citations_semicolon = "\\([A-Z][A-Za-z'-]+[^)]*\\d{4}[a-z]?(?:\\s*;\\s*[A-Z][^)]*\\d{4}[a-z]?)+[^)]*\\)",
     see_citations = "\\((?:see|e\\.g\\.|cf\\.|compare)\\s+[A-Z][A-Za-z'-]+[^)]+\\d{4}[a-z]?\\)",
-    author_year_etal = "\\([A-Z][A-Za-z'-]+\\s+et\\s+al\\.,\\s*\\d{4}[a-z]?\\)",
+    author_year_etal = "\\([A-Z][A-Za-z'-]+\\s+et\\s+al\\.?,\\s*\\d{4}[a-z]?\\)",
     author_year_and = "\\([A-Z][A-Za-z'-]+(?:,\\s*[A-Z][A-Za-z'-]+)*,?\\s+(?:and|&)\\s+[A-Z][A-Za-z'-]+,\\s*\\d{4}[a-z]?\\)",
     author_year_ampersand = "\\([A-Z][A-Za-z'-]+[^)]*&[^)]*\\d{4}[a-z]?\\)",
-    author_year_basic = "\\([A-Z][A-Za-z'-]+(?:\\s+[A-Z][A-Za-z'-]+)*,\\s*\\d{4}[a-z]?\\)",
+    author_year_basic = "\\([A-Z][A-Za-z'-]+(?:\\s+[A-Z][A-Za-z'-]+)*,\\s*\\d{4}[a-z]?(?:,\\s*pp?\\.?\\s*\\d+(?:\\s*[-\u2013]\\s*\\d+)?)?\\)",
 
-    # Numeric patterns
-    numbered_simple = "\\[\\d+\\]",
-    numbered_multiple = "\\[\\d+(?:[-,;\\s]+\\d+)*\\]",
+    # In press / forthcoming / n.d. patterns
+    narrative_in_press = "[A-Z][A-Za-z'-]+(?:\\s+et\\s+al\\.?)?\\s*\\((?:in\\s+press|forthcoming|n\\.d\\.)\\)",
+    author_year_in_press = "\\([A-Z][A-Za-z'-]+(?:\\s+et\\s+al\\.?)?,\\s*(?:in\\s+press|forthcoming|n\\.d\\.)\\)",
+
+    # Numeric patterns (with whitespace tolerance)
+    numbered_simple = "\\[\\s*\\d+\\s*\\]",
+    numbered_multiple = "\\[\\s*\\d+(?:\\s*[-,;\\s]+\\s*\\d+)*\\s*\\]",
     superscript = "[\u00b9\u00b2\u00b3\u2074\u2075\u2076\u2077\u2078\u2079\u2070]+",
 
     # Other
@@ -538,7 +542,9 @@ analyze_scientific_content <- function(
       "narrative_two_authors_and",
       "narrative_etal",
       "narrative_multiple_authors",
-      "narrative_single"
+      "narrative_single",
+      "narrative_in_press",
+      "author_year_in_press"
     )]
     message(
       "Extracting numeric citations (bracketed and superscript) and narrative citations"
@@ -553,7 +559,9 @@ analyze_scientific_content <- function(
       "narrative_two_authors_and",
       "narrative_etal",
       "narrative_multiple_authors",
-      "narrative_single"
+      "narrative_single",
+      "narrative_in_press",
+      "author_year_in_press"
     )]
     message("Extracting bracketed numeric citations and narrative citations")
   } else if (citation_type == "author_year") {
@@ -591,53 +599,51 @@ analyze_scientific_content <- function(
         citation_id = paste0(pattern_name, "_", 1:nrow(matches))
       )
 
+      # Post-match false-positive filter for author-year and narrative patterns
+      if (grepl("narrative|author_year", pattern_name)) {
+        non_author_words <- c(
+          "January", "February", "March", "April", "May", "June",
+          "July", "August", "September", "October", "November", "December",
+          "Table", "Figure", "Chapter", "Section", "Appendix", "Volume",
+          "Issue", "Part", "Equation", "Model", "Phase", "Step",
+          "Experiment", "Hypothesis", "Criterion", "Category", "Factor",
+          "Panel", "Supplement", "Group", "Type", "Level", "Stage",
+          "Version", "Component", "Dimension", "Cluster", "Wave",
+          "Trial", "Sample", "Grade", "Item", "Number"
+        )
+        leading <- stringr::str_extract(
+          citations_temp$citation_text,
+          "\\(?([A-Z][A-Za-z'-]+)",
+          group = 1
+        )
+        citations_temp <- citations_temp[!leading %in% non_author_words, ]
+      }
+
       all_citations <- dplyr::bind_rows(all_citations, citations_temp)
     }
   }
 
-  # Remove duplicates
-  all_citations <- all_citations %>%
-    dplyr::arrange(start_pos, dplyr::desc(nchar(citation_text)))
+  # Remove overlapping duplicates using O(n) single-pass sweep
+  # Sort by start_pos ascending, then by length descending (prefer longer match)
+  cite_len <- all_citations$end_pos - all_citations$start_pos
+  ord <- order(all_citations$start_pos, -cite_len)
+  all_citations <- all_citations[ord, ]
 
   if (nrow(all_citations) > 1) {
-    to_remove <- c()
+    keep <- logical(nrow(all_citations))
+    keep[1] <- TRUE
+    last_kept_end <- all_citations$end_pos[1]
 
-    for (i in 1:(nrow(all_citations) - 1)) {
-      if (i %in% to_remove) {
-        next
+    for (i in 2:nrow(all_citations)) {
+      if (all_citations$start_pos[i] >= last_kept_end) {
+        # No overlap: keep this citation
+        keep[i] <- TRUE
+        last_kept_end <- all_citations$end_pos[i]
       }
-
-      for (j in (i + 1):nrow(all_citations)) {
-        if (j %in% to_remove) {
-          next
-        }
-
-        cite_i_start <- all_citations$start_pos[i]
-        cite_i_end <- all_citations$end_pos[i]
-        cite_j_start <- all_citations$start_pos[j]
-        cite_j_end <- all_citations$end_pos[j]
-
-        if (cite_j_start >= cite_i_start && cite_j_end <= cite_i_end) {
-          to_remove <- c(to_remove, j)
-        } else if (cite_i_start >= cite_j_start && cite_i_end <= cite_j_end) {
-          to_remove <- c(to_remove, i)
-          break
-        } else if (cite_j_start < cite_i_end && cite_j_start > cite_i_start) {
-          len_i <- cite_i_end - cite_i_start
-          len_j <- cite_j_end - cite_j_start
-          if (len_j < len_i) {
-            to_remove <- c(to_remove, j)
-          } else {
-            to_remove <- c(to_remove, i)
-            break
-          }
-        }
-      }
+      # Overlapping: skip (the longer match was already kept due to sort order)
     }
 
-    if (length(to_remove) > 0) {
-      all_citations <- all_citations[-unique(to_remove), ]
-    }
+    all_citations <- all_citations[keep, ]
   }
 
   all_citations <- all_citations %>% dplyr::arrange(start_pos)

@@ -448,3 +448,50 @@ test_that("structure preservation identifies titles", {
   # Should have preserved some structure
   expect_true(grepl("\n", result))
 })
+
+# ============================================================================
+# convert_superscript_citations() - UNIT TESTS
+# ============================================================================
+
+test_that("convert_superscript_citations converts citation after word", {
+  result <- convert_superscript_citations("shown before 5 and")
+  expect_true(grepl("\\[5\\]", result))
+})
+
+test_that("convert_superscript_citations does NOT convert non-citation words", {
+  # table, figure, page, chapter should NOT trigger conversion
+  result <- convert_superscript_citations("see table 2 for details")
+  expect_false(grepl("\\[2\\]", result))
+
+  result <- convert_superscript_citations("in figure 3 we show")
+  expect_false(grepl("\\[3\\]", result))
+
+  result <- convert_superscript_citations("on page 15 of the")
+  expect_false(grepl("\\[15\\]", result))
+
+  result <- convert_superscript_citations("in chapter 4 the authors")
+  expect_false(grepl("\\[4\\]", result))
+})
+
+test_that("convert_superscript_citations handles comma-separated groups", {
+  result <- convert_superscript_citations("evidence 1, 2, 3 shows")
+  expect_true(grepl("\\[1,2,3\\]", result))
+})
+
+test_that("convert_superscript_citations converts Unicode superscripts", {
+  result <- convert_superscript_citations("some text\u00b9\u00b2\u00b3 more text")
+  expect_true(grepl("\\[123\\]", result))
+
+  result <- convert_superscript_citations("word\u2074\u2075 here")
+  expect_true(grepl("\\[45\\]", result))
+})
+
+test_that("convert_superscript_citations preserves commas in regular text", {
+  result <- convert_superscript_citations("Smith, Jones, and Brown studied this")
+  expect_true(grepl("Smith, Jones, and Brown", result))
+})
+
+test_that("convert_superscript_citations converts numbers at line start", {
+  result <- convert_superscript_citations("end of sentence.\n15 The next part")
+  expect_true(grepl("\\[15\\]", result))
+})
