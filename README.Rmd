@@ -106,6 +106,8 @@ The result is a rich, structured dataset that transforms a static PDF into an an
 -   Section-aware visualization (color-coded by document section)
 -   Multi-section citation detection (citations appearing in multiple sections)
 -   Network statistics: centrality, clustering, community detection potential
+-   Citation cluster descriptions: TF-IDF analysis of reference titles by section
+-   Interactive plotly visualizations: bar charts, heatmaps, and reference density plots
 
 ### Text Analysis
 
@@ -281,6 +283,45 @@ network_clean <- create_citation_network(
 )
 ```
 
+## Citation Cluster Description
+
+Describe the thematic focus of each section's bibliography using TF-IDF analysis of reference titles:
+
+```{r}
+# Generate cluster descriptions
+cluster_desc <- describe_citation_clusters(analysis, top_n = 10)
+
+# View summary: top terms per section
+cluster_desc$cluster_summary
+
+# View detailed TF-IDF scores
+cluster_desc$cluster_descriptions
+```
+
+### Visualize Citation Clusters
+
+Create interactive plotly visualizations that complement the citation network:
+
+```{r eval=FALSE}
+# Generate all three plots
+plots <- plot_citation_clusters(
+  cluster_desc,
+  section_colors = analysis$section_colors,
+  top_n = 10
+)
+
+# 1. Horizontal bar chart: top TF-IDF terms per section
+plots$tfidf_bars
+
+# 2. Heatmap: terms vs sections (shows unique vs shared terms)
+plots$tfidf_heatmap
+
+# 3. Bar chart: reference counts per section
+plots$references_per_section
+```
+
+The plots display sections in the order they appear in the paper, use consistent styling, and include interactive hover information. Colors match the section colors used in the citation network.
+
 ## Text Analysis
 
 ### Track methodological terms across sections
@@ -413,6 +454,8 @@ dist %>%
 ### Network Analysis
 
 -   `create_citation_network()`: Create interactive citation co-occurrence network
+-   `describe_citation_clusters()`: Describe citation clusters by section using TF-IDF on reference titles
+-   `plot_citation_clusters()`: Create interactive plotly visualizations of citation cluster descriptions (TF-IDF bars, heatmap, references per section)
 
 ### Text Analysis
 
@@ -423,6 +466,7 @@ dist %>%
 ### Visualization
 
 -   `plot_word_distribution()`: Interactive visualization of word distribution across sections
+-   `plot_citation_clusters()`: Interactive TF-IDF bar charts, heatmaps, and reference density plots
 
 ### Utilities
 

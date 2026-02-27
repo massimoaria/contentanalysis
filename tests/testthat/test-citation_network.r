@@ -483,3 +483,92 @@ test_that("function handles references with no extractable titles", {
   )
   expect_null(result)
 })
+
+
+# ===================================================================
+# Tests for plot_citation_clusters()
+# ===================================================================
+
+# Helper to create a mock cluster description for plot tests
+create_mock_cluster_description <- function() {
+  mock_data <- create_mock_cluster_results()
+  describe_citation_clusters(mock_data, top_n = 5)
+}
+
+# Test 27: Returns correct structure and class
+test_that("plot_citation_clusters returns a list of class 'citation_cluster_plots' with 3 named elements", {
+  skip_on_cran()
+  skip_if_not_installed("plotly")
+
+  desc <- create_mock_cluster_description()
+  plots <- plot_citation_clusters(desc)
+
+  expect_s3_class(plots, "citation_cluster_plots")
+  expect_true(is.list(plots))
+  expect_equal(length(plots), 3)
+
+  expect_true("tfidf_bars" %in% names(plots))
+  expect_true("tfidf_heatmap" %in% names(plots))
+  expect_true("references_per_section" %in% names(plots))
+})
+
+# Test 28: Each element is a plotly/htmlwidget object
+test_that("each plot element is a plotly htmlwidget", {
+  skip_on_cran()
+  skip_if_not_installed("plotly")
+
+  desc <- create_mock_cluster_description()
+  plots <- plot_citation_clusters(desc)
+
+  expect_s3_class(plots$tfidf_bars, "plotly")
+  expect_s3_class(plots$tfidf_bars, "htmlwidget")
+  expect_s3_class(plots$tfidf_heatmap, "plotly")
+  expect_s3_class(plots$tfidf_heatmap, "htmlwidget")
+  expect_s3_class(plots$references_per_section, "plotly")
+  expect_s3_class(plots$references_per_section, "htmlwidget")
+})
+
+# Test 29: Handles NULL input gracefully
+test_that("plot_citation_clusters handles NULL input with warning", {
+  skip_on_cran()
+  skip_if_not_installed("plotly")
+
+  expect_warning(
+    result <- plot_citation_clusters(NULL),
+    "cluster_description is NULL"
+  )
+  expect_null(result)
+})
+
+# Test 30: section_colors parameter works without error
+test_that("section_colors parameter works correctly", {
+  skip_on_cran()
+  skip_if_not_installed("plotly")
+
+  desc <- create_mock_cluster_description()
+  custom_colors <- c(
+    "Introduction" = "#FF0000",
+    "Methods" = "#00FF00",
+    "Results" = "#0000FF",
+    "Discussion" = "#FFFF00"
+  )
+
+  plots <- plot_citation_clusters(desc, section_colors = custom_colors)
+
+  expect_s3_class(plots, "citation_cluster_plots")
+  expect_s3_class(plots$tfidf_bars, "plotly")
+})
+
+# Test 31: top_n limits displayed terms
+test_that("top_n parameter limits displayed terms", {
+  skip_on_cran()
+  skip_if_not_installed("plotly")
+
+  desc <- create_mock_cluster_description()
+
+  # With a very small top_n the plots should still work
+  plots_small <- plot_citation_clusters(desc, top_n = 2)
+
+  expect_s3_class(plots_small, "citation_cluster_plots")
+  expect_s3_class(plots_small$tfidf_bars, "plotly")
+})

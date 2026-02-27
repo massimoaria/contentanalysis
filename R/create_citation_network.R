@@ -382,6 +382,10 @@ describe_citation_clusters <- function(
     return(NULL)
   }
 
+  # Preserve original section order as they appear in the paper
+  section_order <- unique(citation_analysis_results$citations$section)
+  section_order <- section_order[!is.na(section_order)]
+
   # --- Step 1: Join citations to references by section ---
   citations_by_section <- citation_analysis_results$citations %>%
     select(citation_text_clean, section) %>%
@@ -475,11 +479,13 @@ describe_citation_clusters <- function(
 
   # Select top_n per section
   cluster_descriptions <- ngram_tfidf %>%
+    mutate(section = factor(section, levels = section_order)) %>%
     group_by(section) %>%
     arrange(desc(tf_idf), .by_group = TRUE) %>%
     slice_head(n = top_n) %>%
     ungroup() %>%
-    arrange(section, desc(tf_idf))
+    arrange(section, desc(tf_idf)) %>%
+    mutate(section = as.character(section))
 
   # --- Step 5: Build summary ---
   cluster_summary <- cluster_descriptions %>%
@@ -496,13 +502,17 @@ describe_citation_clusters <- function(
 
   cluster_summary <- cluster_summary %>%
     left_join(ref_counts, by = "section") %>%
+    mutate(section = factor(section, levels = section_order)) %>%
+    arrange(section) %>%
+    mutate(section = as.character(section)) %>%
     select(section, n_references, top_terms)
 
   # --- Build result ---
   result <- list(
     cluster_descriptions = cluster_descriptions,
     cluster_summary = cluster_summary,
-    cluster_references = cluster_references
+    cluster_references = cluster_references,
+    section_order = section_order
   )
 
   class(result) <- "citation_cluster_description"
@@ -548,4 +558,369 @@ extract_title_from_ref <- function(ref_text) {
   }
 
   return(NA_character_)
+}
+
+
+#' Plot Citation Cluster Descriptions
+#'
+#' @description
+#' Creates interactive plotly visualizations that describe citation clusters
+#' thematically, complementing the interactive network from
+#' \code{create_citation_network()}.
+#'
+#' @param cluster_description An object of class \code{"citation_cluster_description"}
+#'   returned by \code{describe_citation_clusters()}.
+#' @param section_colors Optional named vector of hex colors for sections
+#'   (e.g., from \code{citation_analysis_results$section_colors}). If NULL,
+#'   colors are auto-generated via an internal palette.
+#' @param top_n Integer. Maximum number of terms per section to display.
+#'   Re-slices if the input has more. Default is 10.
+#'
+#' @return A list of class \code{"citation_cluster_plots"} with three plotly objects:
+#'   \itemize{
+#'     \item \code{tfidf_bars}: Horizontal bar chart of top TF-IDF terms per section,
+#'       with one subplot row per section sharing the x-axis
+#'     \item \code{tfidf_heatmap}: Heatmap of terms vs sections showing TF-IDF intensity
+#'     \item \code{references_per_section}: Bar chart of reference counts per section
+#'   }
+#'   Returns NULL with a warning if \code{cluster_description} is NULL.
+#'
+#' @details
+#' The three plots provide complementary views of the citation clusters:
+#' \itemize{
+#'   \item \strong{TF-IDF bars} show which terms are most distinctive for each section
+#'   \item \strong{Heatmap} reveals which terms are unique to a section versus shared
+#'   \item \strong{References per section} provides an overview of bibliographic density
+#' }
+#'
+#' @examples
+#' \dontrun{
+#' results <- analyze_scientific_content(pdf_path)
+#' cluster_desc <- describe_citation_clusters(results)
+#' plots <- plot_citation_clusters(cluster_desc,
+#'   section_colors = results$section_colors
+#' )
+#'
+#' # Display individual plots
+#' plots$tfidf_bars
+#' plots$tfidf_heatmap
+#' plots$references_per_section
+#' }
+#'
+#' @import dplyr
+#'
+#' @export
+plot_citation_clusters <- function(
+    cluster_description,
+    section_colors = NULL,
+    top_n = 10
+) {
+  if (!requireNamespace("plotly", quietly = TRUE)) {
+    stop("Package 'plotly' is required for this function. Install it with: install.packages('plotly')")
+  }
+
+  if (is.null(cluster_description)) {
+    warning("cluster_description is NULL. Cannot create plots.")
+    return(NULL)
+  }
+
+  if (!inherits(cluster_description, "citation_cluster_description")) {
+    stop("cluster_description must be an object of class 'citation_cluster_description' from describe_citation_clusters().")
+  }
+
+  descriptions <- cluster_description$cluster_descriptions
+  summary_data <- cluster_description$cluster_summary
+
+  # Re-slice to top_n per section
+  descriptions <- descriptions %>%
+    group_by(section) %>%
+    arrange(desc(tf_idf), .by_group = TRUE) %>%
+    slice_head(n = top_n) %>%
+    ungroup()
+
+  # Preserve original section order from the paper
+  if (!is.null(cluster_description$section_order)) {
+    all_sections <- cluster_description$section_order
+    # Keep only sections present in the data
+    all_sections <- all_sections[all_sections %in% unique(descriptions$section)]
+  } else {
+    all_sections <- unique(descriptions$section)
+  }
+  n_sections <- length(all_sections)
+
+  # Auto-generate colors if not provided
+  if (is.null(section_colors)) {
+    palette <- colorlist()
+    section_colors <- palette[seq_len(min(n_sections, length(palette)))]
+    names(section_colors) <- all_sections
+  }
+
+  # Ensure all sections have a color
+  for (sec in all_sections) {
+    if (is.na(section_colors[sec]) || is.null(section_colors[sec])) {
+      section_colors[sec] <- "#CCCCCC"
+    }
+  }
+
+  # Common styling
+  title_font <- list(size = 16, color = "#2E86AB")
+  axis_font <- list(size = 12, family = "Arial, sans-serif", color = "#333")
+
+  # --- Plot 1: TF-IDF horizontal bar chart per section ---
+  subplot_list <- list()
+  for (i in seq_along(all_sections)) {
+    sec <- all_sections[i]
+    sec_data <- descriptions %>%
+      filter(section == sec) %>%
+      arrange(tf_idf)
+
+    ngram_type <- ifelse(sec_data$ngram_size == 1, "unigram", "bigram")
+
+    hover_text <- paste0(
+      "<b>Term:</b> ", sec_data$ngram, "<br>",
+      "<b>TF-IDF:</b> ", round(sec_data$tf_idf, 4), "<br>",
+      "<b>Count:</b> ", sec_data$n, "<br>",
+      "<b>Type:</b> ", ngram_type
+    )
+
+    p <- plotly::plot_ly(
+      data = sec_data,
+      y = ~factor(ngram, levels = ngram),
+      x = ~tf_idf,
+      type = "bar",
+      orientation = "h",
+      marker = list(color = section_colors[sec]),
+      text = hover_text,
+      hovertemplate = "%{text}<extra></extra>",
+      name = sec,
+      showlegend = (i == 1)
+    ) %>%
+      plotly::layout(
+        yaxis = list(
+          title = "",
+          tickfont = list(size = 11),
+          categoryorder = "array",
+          categoryarray = sec_data$ngram
+        ),
+        annotations = list(
+          list(
+            text = paste0("<b>", sec, "</b>"),
+            xref = "paper", yref = "paper",
+            x = 0, y = 1.08,
+            showarrow = FALSE,
+            font = list(size = 12, color = "#333")
+          )
+        )
+      )
+
+    subplot_list[[i]] <- p
+  }
+
+  # Dynamic height: ensure enough space per section for bars to be readable
+  bar_plot_height <- max(600, n_sections * top_n * 22 + 120)
+
+  tfidf_bars <- plotly::subplot(
+    subplot_list,
+    nrows = n_sections,
+    shareX = TRUE,
+    titleY = TRUE,
+    margin = 0.04
+  )
+  tfidf_bars$height <- bar_plot_height
+  tfidf_bars <- tfidf_bars %>%
+    plotly::layout(
+      title = list(
+        text = "<b>Top TF-IDF Terms by Section</b>",
+        font = title_font
+      ),
+      xaxis = list(
+        title = list(text = "TF-IDF Score", font = axis_font),
+        gridcolor = "#e0e0e0"
+      ),
+      plot_bgcolor = "#fafafa",
+      paper_bgcolor = "white",
+      margin = list(l = 150, r = 40, t = 60, b = 60)
+    ) %>%
+    plotly::config(
+      displayModeBar = TRUE,
+      displaylogo = FALSE,
+      modeBarButtonsToRemove = c("select2d", "lasso2d", "autoScale2d"),
+      toImageButtonOptions = list(
+        format = "png",
+        filename = "tfidf_bars",
+        height = bar_plot_height,
+        width = 1000,
+        scale = 2
+      )
+    )
+
+  # --- Plot 2: TF-IDF heatmap (terms vs sections) ---
+  # Get union of top terms across sections (up to ~20)
+  top_terms_per_section <- descriptions %>%
+    group_by(section) %>%
+    slice_head(n = max(1, floor(20 / n_sections))) %>%
+    ungroup()
+
+  heatmap_terms <- unique(top_terms_per_section$ngram)
+  # If fewer than 20, add more from the full set
+  if (length(heatmap_terms) < 20) {
+    remaining <- descriptions %>%
+      filter(!ngram %in% heatmap_terms) %>%
+      arrange(desc(tf_idf)) %>%
+      pull(ngram) %>%
+      unique()
+    heatmap_terms <- unique(c(heatmap_terms, remaining))[seq_len(min(20, length(unique(c(heatmap_terms, remaining)))))]
+  }
+
+  # Build heatmap matrix
+  heatmap_data <- expand.grid(
+    ngram = heatmap_terms,
+    section = all_sections,
+    stringsAsFactors = FALSE
+  ) %>%
+    left_join(
+      descriptions %>% select(ngram, section, tf_idf),
+      by = c("ngram", "section")
+    ) %>%
+    mutate(tf_idf = ifelse(is.na(tf_idf), 0, tf_idf))
+
+  # Pivot to matrix form
+  heatmap_matrix <- matrix(0, nrow = length(heatmap_terms), ncol = n_sections)
+  rownames(heatmap_matrix) <- heatmap_terms
+  colnames(heatmap_matrix) <- all_sections
+
+  for (r in seq_along(heatmap_terms)) {
+    for (cc in seq_along(all_sections)) {
+      val <- heatmap_data$tf_idf[
+        heatmap_data$ngram == heatmap_terms[r] &
+          heatmap_data$section == all_sections[cc]
+      ]
+      if (length(val) > 0) heatmap_matrix[r, cc] <- val[1]
+    }
+  }
+
+  hover_matrix <- matrix("", nrow = length(heatmap_terms), ncol = n_sections)
+  for (r in seq_along(heatmap_terms)) {
+    for (cc in seq_along(all_sections)) {
+      hover_matrix[r, cc] <- paste0(
+        "<b>Term:</b> ", heatmap_terms[r], "<br>",
+        "<b>Section:</b> ", all_sections[cc], "<br>",
+        "<b>TF-IDF:</b> ", round(heatmap_matrix[r, cc], 4)
+      )
+    }
+  }
+
+  tfidf_heatmap <- plotly::plot_ly(
+    x = all_sections,
+    y = heatmap_terms,
+    z = heatmap_matrix,
+    type = "heatmap",
+    colorscale = list(c(0, "white"), c(1, "#08519c")),
+    text = hover_matrix,
+    hovertemplate = "%{text}<extra></extra>",
+    colorbar = list(title = "TF-IDF")
+  ) %>%
+    plotly::layout(
+      title = list(
+        text = "<b>TF-IDF Heatmap: Terms vs Sections</b>",
+        font = title_font
+      ),
+      xaxis = list(
+        title = list(text = "Section", font = axis_font),
+        tickangle = -45,
+        tickfont = list(size = 11),
+        categoryorder = "array",
+        categoryarray = all_sections
+      ),
+      yaxis = list(
+        title = list(text = "Term", font = axis_font),
+        tickfont = list(size = 10),
+        autorange = "reversed"
+      ),
+      plot_bgcolor = "#fafafa",
+      paper_bgcolor = "white",
+      margin = list(l = 140, r = 40, t = 60, b = 100)
+    ) %>%
+    plotly::config(
+      displayModeBar = TRUE,
+      displaylogo = FALSE,
+      modeBarButtonsToRemove = c("select2d", "lasso2d", "autoScale2d"),
+      toImageButtonOptions = list(
+        format = "png",
+        filename = "tfidf_heatmap",
+        height = 600,
+        width = 1000,
+        scale = 2
+      )
+    )
+
+  # --- Plot 3: References per section bar chart ---
+  ref_counts <- summary_data %>%
+    mutate(section = factor(section, levels = all_sections)) %>%
+    arrange(section) %>%
+    mutate(section = as.character(section))
+
+  bar_colors <- sapply(ref_counts$section, function(s) {
+    if (s %in% names(section_colors)) section_colors[s] else "#CCCCCC"
+  })
+
+  hover_refs <- paste0(
+    "<b>Section:</b> ", ref_counts$section, "<br>",
+    "<b>References:</b> ", ref_counts$n_references
+  )
+
+  references_per_section <- plotly::plot_ly(
+    data = ref_counts,
+    x = ~section,
+    y = ~n_references,
+    type = "bar",
+    marker = list(color = bar_colors),
+    text = ~n_references,
+    textposition = "outside",
+    textfont = list(size = 12, color = "#333"),
+    hovertext = hover_refs,
+    hovertemplate = "%{hovertext}<extra></extra>"
+  ) %>%
+    plotly::layout(
+      title = list(
+        text = "<b>References per Section</b>",
+        font = title_font
+      ),
+      xaxis = list(
+        title = list(text = "Section", font = axis_font),
+        tickangle = -45,
+        gridcolor = "#e0e0e0",
+        categoryorder = "array",
+        categoryarray = all_sections
+      ),
+      yaxis = list(
+        title = list(text = "Number of References", font = axis_font),
+        gridcolor = "#e0e0e0"
+      ),
+      plot_bgcolor = "#fafafa",
+      paper_bgcolor = "white",
+      margin = list(l = 60, r = 40, t = 60, b = 100)
+    ) %>%
+    plotly::config(
+      displayModeBar = TRUE,
+      displaylogo = FALSE,
+      modeBarButtonsToRemove = c("select2d", "lasso2d", "autoScale2d"),
+      toImageButtonOptions = list(
+        format = "png",
+        filename = "references_per_section",
+        height = 600,
+        width = 1000,
+        scale = 2
+      )
+    )
+
+  # Build result
+  result <- list(
+    tfidf_bars = tfidf_bars,
+    tfidf_heatmap = tfidf_heatmap,
+    references_per_section = references_per_section
+  )
+
+  class(result) <- "citation_cluster_plots"
+  return(result)
 }

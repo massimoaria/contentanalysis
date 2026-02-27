@@ -142,6 +142,10 @@ patterns - **Network analysis**: Visualizing intellectual connections -
   sections)
 - Network statistics: centrality, clustering, community detection
   potential
+- Citation cluster descriptions: TF-IDF analysis of reference titles by
+  section
+- Interactive plotly visualizations: bar charts, heatmaps, and reference
+  density plots
 
 ### Text Analysis
 
@@ -440,6 +444,76 @@ network_clean <- create_citation_network(
 )
 ```
 
+## Citation Cluster Description
+
+Describe the thematic focus of each section’s bibliography using TF-IDF
+analysis of reference titles:
+
+``` r
+# Generate cluster descriptions
+cluster_desc <- describe_citation_clusters(analysis, top_n = 10)
+
+# View summary: top terms per section
+cluster_desc$cluster_summary
+#> # A tibble: 10 × 3
+#>    section                         n_references top_terms                       
+#>    <chr>                                  <int> <chr>                           
+#>  1 Introduction                               4 learning, machine, machine lear…
+#>  2 Related work                               8 black, black box, box, acm, sur…
+#>  3 Random forest extra information            5 forests, random forests, annals…
+#>  4 Visualization toolkits                     4 analytics, analytics ieee, comp…
+#>  5 Size reduction                             4 adaptive, adaptive diagnostic, …
+#>  6 Rule extraction                            2 annals applied, applied, applie…
+#>  7 Local explanation                          3 models, classification, classif…
+#>  8 Comparison study                           1 annals applied, applied, applie…
+#>  9 Experimental design                        3 bell, bell laboratories, labora…
+#> 10 Analysis                                   3 domains, domains acm, imbalance…
+
+# View detailed TF-IDF scores
+cluster_desc$cluster_descriptions
+#> # A tibble: 83 × 7
+#>    section      ngram              ngram_size     n     tf   idf tf_idf
+#>    <chr>        <chr>                   <int> <int>  <dbl> <dbl>  <dbl>
+#>  1 Introduction learning                    1     2 0.143   1.20 0.172 
+#>  2 Introduction machine                     1     2 0.143   1.20 0.172 
+#>  3 Introduction machine learning            2     2 0.143   1.20 0.172 
+#>  4 Introduction bagging                     1     1 0.0714  2.30 0.164 
+#>  5 Introduction bagging predictors          2     1 0.0714  2.30 0.164 
+#>  6 Introduction predictors                  1     1 0.0714  2.30 0.164 
+#>  7 Introduction predictors machine          2     1 0.0714  2.30 0.164 
+#>  8 Introduction forests machine             2     1 0.0714  1.61 0.115 
+#>  9 Introduction forests                     1     1 0.0714  1.20 0.0860
+#> 10 Introduction random forests              2     1 0.0714  1.20 0.0860
+#> # ℹ 73 more rows
+```
+
+### Visualize Citation Clusters
+
+Create interactive plotly visualizations that complement the citation
+network:
+
+``` r
+# Generate all three plots
+plots <- plot_citation_clusters(
+  cluster_desc,
+  section_colors = analysis$section_colors,
+  top_n = 10
+)
+
+# 1. Horizontal bar chart: top TF-IDF terms per section
+plots$tfidf_bars
+
+# 2. Heatmap: terms vs sections (shows unique vs shared terms)
+plots$tfidf_heatmap
+
+# 3. Bar chart: reference counts per section
+plots$references_per_section
+```
+
+The plots display sections in the order they appear in the paper, use
+consistent styling, and include interactive hover information. Colors
+match the section colors used in the citation network.
+
 ## Text Analysis
 
 ### Track methodological terms across sections
@@ -462,7 +536,7 @@ webshot::webshot("temp_plot.html", "man/figures/README-word-distribution.png",
                  vwidth = 1000, vheight = 600)
 ```
 
-<img src="man/figures/README-unnamed-chunk-14-1.png" width="100%" />
+<img src="man/figures/README-unnamed-chunk-16-1.png" width="100%" />
 
 ``` r
 file.remove("temp_plot.html")
@@ -659,6 +733,11 @@ dist %>%
 
 - `create_citation_network()`: Create interactive citation co-occurrence
   network
+- `describe_citation_clusters()`: Describe citation clusters by section
+  using TF-IDF on reference titles
+- `plot_citation_clusters()`: Create interactive plotly visualizations
+  of citation cluster descriptions (TF-IDF bars, heatmap, references per
+  section)
 
 ### Text Analysis
 
@@ -673,6 +752,8 @@ dist %>%
 
 - `plot_word_distribution()`: Interactive visualization of word
   distribution across sections
+- `plot_citation_clusters()`: Interactive TF-IDF bar charts, heatmaps,
+  and reference density plots
 
 ### Utilities
 
