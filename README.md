@@ -500,7 +500,7 @@ plots <- plot_citation_clusters(
   top_n = 10
 )
 
-# 1. Horizontal bar chart: top TF-IDF terms per section
+# 1. Horizontal bar chart: top TF-IDF terms per section (2-column grid layout)
 plots$tfidf_bars
 
 # 2. Heatmap: terms vs sections (shows unique vs shared terms)
@@ -510,9 +510,11 @@ plots$tfidf_heatmap
 plots$references_per_section
 ```
 
-The plots display sections in the order they appear in the paper, use
-consistent styling, and include interactive hover information. Colors
-match the section colors used in the citation network.
+The TF-IDF bar chart uses a 2-column grid layout with color-coded
+section titles for a compact, readable overview. All plots display
+sections in the order they appear in the paper, use consistent styling,
+and include interactive hover information. Colors match the section
+colors used in the citation network.
 
 ## Text Analysis
 
@@ -665,7 +667,7 @@ if (!is.null(analysis$references_oa)) {
   summary(analysis$references_oa$cited_by_count)
 }
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#>      98     205    1051   12388    5366  119349
+#>     100     205    1056   12429    5399  119748
 ```
 
 ### Citations by section
