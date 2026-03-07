@@ -302,17 +302,14 @@ cluster_desc$cluster_descriptions
 
 Create interactive plotly visualizations that complement the citation network:
 
-```{r}
-# Generate all three plots
+```{r include=FALSE}
+# Generate all three plots and save as static images for GitHub README
 plots <- plot_citation_clusters(
   cluster_desc,
   section_colors = analysis$section_colors,
   top_n = 10
 )
-```
 
-```{r echo=FALSE, results='hide'}
-# Save plots as static images for GitHub README
 if (!dir.exists("man/figures")) dir.create("man/figures", recursive = TRUE)
 
 htmlwidgets::saveWidget(plots$tfidf_bars, "temp_tfidf_bars.html", selfcontained = TRUE)

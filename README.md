@@ -492,17 +492,6 @@ cluster_desc$cluster_descriptions
 Create interactive plotly visualizations that complement the citation
 network:
 
-``` r
-# Generate all three plots
-plots <- plot_citation_clusters(
-  cluster_desc,
-  section_colors = analysis$section_colors,
-  top_n = 10
-)
-```
-
-<img src="man/figures/README-unnamed-chunk-15-1.png" width="100%" /><img src="man/figures/README-unnamed-chunk-15-2.png" width="100%" /><img src="man/figures/README-unnamed-chunk-15-3.png" width="100%" />
-
 **1. TF-IDF terms per section (2-column grid layout)**
 
 <img src="man/figures/README-tfidf-bars.png" width="100%" />
