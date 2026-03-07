@@ -532,13 +532,6 @@ word_dist <- calculate_word_distribution(doc, method_terms)
 
 ### Create interactive visualization
 
-``` r
-# Create the plot
-p <- plot_word_distribution(word_dist, plot_type = "line", smooth = TRUE, show_points = TRUE)
-```
-
-<img src="man/figures/README-unnamed-chunk-21-1.png" width="100%" />
-
 <img src="man/figures/README-word-distribution.png" width="100%" />
 
 ### Examine most frequent words
