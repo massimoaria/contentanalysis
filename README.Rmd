@@ -362,13 +362,9 @@ word_dist <- calculate_word_distribution(doc, method_terms)
 
 ### Create interactive visualization
 
-```{r}
-# Create the plot
+```{r include=FALSE}
+# Create the plot and save as static image for GitHub
 p <- plot_word_distribution(word_dist, plot_type = "line", smooth = TRUE, show_points = TRUE)
-```
-
-```{r echo=FALSE, results='hide'}
-# Save as static image for GitHub
 if (!dir.exists("man/figures")) dir.create("man/figures", recursive = TRUE)
 htmlwidgets::saveWidget(p, "temp_plot.html", selfcontained = TRUE)
 webshot::webshot("temp_plot.html", "man/figures/README-word-distribution.png",
