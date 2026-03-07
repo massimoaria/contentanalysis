@@ -666,7 +666,10 @@ plot_citation_clusters <- function(
   title_font <- list(size = 16, color = "#2E86AB")
   axis_font <- list(size = 12, family = "Arial, sans-serif", color = "#333")
 
-  # --- Plot 1: TF-IDF horizontal bar chart per section ---
+  # --- Plot 1: TF-IDF horizontal bar chart per section (2-column grid) ---
+  n_cols <- 2
+  n_rows <- ceiling(n_sections / n_cols)
+
   subplot_list <- list()
   for (i in seq_along(all_sections)) {
     sec <- all_sections[i]
@@ -693,53 +696,76 @@ plot_citation_clusters <- function(
       text = hover_text,
       hovertemplate = "%{text}<extra></extra>",
       name = sec,
-      showlegend = (i == 1)
+      showlegend = FALSE
     ) %>%
       plotly::layout(
         yaxis = list(
           title = "",
-          tickfont = list(size = 11),
+          tickfont = list(size = 10),
           categoryorder = "array",
           categoryarray = sec_data$ngram
-        ),
-        annotations = list(
-          list(
-            text = paste0("<b>", sec, "</b>"),
-            xref = "paper", yref = "paper",
-            x = 0, y = 1.08,
-            showarrow = FALSE,
-            font = list(size = 12, color = "#333")
-          )
         )
       )
 
     subplot_list[[i]] <- p
   }
 
-  # Dynamic height: ensure enough space per section for bars to be readable
-  bar_plot_height <- max(600, n_sections * top_n * 22 + 120)
+  # Pad with empty plots if odd number of sections
+  if (n_sections %% n_cols != 0) {
+    empty_p <- plotly::plot_ly(type = "bar") %>%
+      plotly::layout(
+        xaxis = list(visible = FALSE),
+        yaxis = list(visible = FALSE)
+      )
+    for (k in seq_len(n_cols - (n_sections %% n_cols))) {
+      subplot_list[[length(subplot_list) + 1]] <- empty_p
+    }
+  }
+
+  # Dynamic height: compact rows
+  bar_plot_height <- max(450, n_rows * top_n * 20 + 80)
 
   tfidf_bars <- plotly::subplot(
     subplot_list,
-    nrows = n_sections,
-    shareX = TRUE,
+    nrows = n_rows,
+    shareX = FALSE,
+    shareY = FALSE,
     titleY = TRUE,
-    margin = 0.04
+    margin = 0.06
   )
   tfidf_bars$height <- bar_plot_height
+
+  # Build annotations for section titles positioned over each subplot
+  section_annotations <- list()
+  for (i in seq_along(all_sections)) {
+    row_idx <- ceiling(i / n_cols)
+    col_idx <- ((i - 1) %% n_cols) + 1
+
+    # x position: center of each column
+    x_pos <- (col_idx - 1) / n_cols + 0.5 / n_cols
+    # y position: top of each row
+    y_pos <- 1 - (row_idx - 1) / n_rows + 0.005
+
+    section_annotations[[i]] <- list(
+      text = paste0("<b>", all_sections[i], "</b>"),
+      xref = "paper", yref = "paper",
+      x = x_pos, y = y_pos,
+      xanchor = "center", yanchor = "bottom",
+      showarrow = FALSE,
+      font = list(size = 11, color = section_colors[all_sections[i]])
+    )
+  }
+
   tfidf_bars <- tfidf_bars %>%
     plotly::layout(
       title = list(
         text = "<b>Top TF-IDF Terms by Section</b>",
         font = title_font
       ),
-      xaxis = list(
-        title = list(text = "TF-IDF Score", font = axis_font),
-        gridcolor = "#e0e0e0"
-      ),
+      annotations = section_annotations,
       plot_bgcolor = "#fafafa",
       paper_bgcolor = "white",
-      margin = list(l = 150, r = 40, t = 60, b = 60)
+      margin = list(l = 120, r = 20, t = 60, b = 40)
     ) %>%
     plotly::config(
       displayModeBar = TRUE,
@@ -749,7 +775,7 @@ plot_citation_clusters <- function(
         format = "png",
         filename = "tfidf_bars",
         height = bar_plot_height,
-        width = 1000,
+        width = 1200,
         scale = 2
       )
     )
