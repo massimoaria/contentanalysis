@@ -767,16 +767,43 @@ OpenAlex provides comprehensive scholarly metadata:
 
 ### Setting Up API Access
 
+#### Email for polite pool (recommended)
+
+Both CrossRef and OpenAlex offer a **polite pool** for users who provide
+an email address. This gives you faster and more reliable access
+compared to anonymous requests. Simply pass your email via the `mailto`
+parameter:
+
 ``` r
-# For CrossRef (recommended to avoid rate limits)
 analysis <- analyze_scientific_content(
   text = doc,
   doi = "10.xxxx/xxxxx",
-  mailto = "your@email.com"  # Your email for CrossRef polite pool
+  mailto = "your@email.com"  # Your email for polite pool access
 )
+```
 
-# For OpenAlex (optional, increases rate limits)
-# Get free API key at: https://openalex.org/
+The `mailto` parameter is used by both CrossRef and OpenAlex to route
+your requests through their polite pool, which provides higher rate
+limits and priority access.
+
+#### OpenAlex API key (optional, for extended use)
+
+For heavier usage, OpenAlex offers a free API key that further increases
+rate limits (from 10 to 100 requests/second). This is recommended if you
+plan to analyze many documents in batch.
+
+1.  Get your free API key at: <https://openalex.org/users>
+2.  Set it in your R session before running the analysis:
+
+``` r
+openalexR::oa_apikey("your-api-key-here")
+```
+
+You can also add this to your `.Rprofile` so it’s automatically set at
+startup:
+
+``` r
+# Add to ~/.Rprofile
 openalexR::oa_apikey("your-api-key-here")
 ```
 
