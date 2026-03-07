@@ -499,16 +499,21 @@ plots <- plot_citation_clusters(
   section_colors = analysis$section_colors,
   top_n = 10
 )
-
-# 1. Horizontal bar chart: top TF-IDF terms per section (2-column grid layout)
-plots$tfidf_bars
-
-# 2. Heatmap: terms vs sections (shows unique vs shared terms)
-plots$tfidf_heatmap
-
-# 3. Bar chart: reference counts per section
-plots$references_per_section
 ```
+
+<img src="man/figures/README-unnamed-chunk-15-1.png" width="100%" /><img src="man/figures/README-unnamed-chunk-15-2.png" width="100%" /><img src="man/figures/README-unnamed-chunk-15-3.png" width="100%" />
+
+**1. TF-IDF terms per section (2-column grid layout)**
+
+<img src="man/figures/README-tfidf-bars.png" width="100%" />
+
+**2. Heatmap: terms vs sections (unique vs shared terms)**
+
+<img src="man/figures/README-tfidf-heatmap.png" width="100%" />
+
+**3. References per section**
+
+<img src="man/figures/README-refs-per-section.png" width="100%" />
 
 The TF-IDF bar chart uses a 2-column grid layout with color-coded
 section titles for a compact, readable overview. All plots display
@@ -528,22 +533,11 @@ word_dist <- calculate_word_distribution(doc, method_terms)
 ### Create interactive visualization
 
 ``` r
-# Create and save the plot
+# Create the plot
 p <- plot_word_distribution(word_dist, plot_type = "line", smooth = TRUE, show_points = TRUE)
-
-# Save as static image for GitHub
-if (!dir.exists("man/figures")) dir.create("man/figures", recursive = TRUE)
-htmlwidgets::saveWidget(p, "temp_plot.html", selfcontained = TRUE)
-webshot::webshot("temp_plot.html", "man/figures/README-word-distribution.png", 
-                 vwidth = 1000, vheight = 600)
 ```
 
-<img src="man/figures/README-unnamed-chunk-16-1.png" width="100%" />
-
-``` r
-file.remove("temp_plot.html")
-#> [1] TRUE
-```
+<img src="man/figures/README-unnamed-chunk-21-1.png" width="100%" />
 
 <img src="man/figures/README-word-distribution.png" width="100%" />
 
