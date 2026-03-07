@@ -302,22 +302,51 @@ cluster_desc$cluster_descriptions
 
 Create interactive plotly visualizations that complement the citation network:
 
-```{r eval=FALSE}
+```{r}
 # Generate all three plots
 plots <- plot_citation_clusters(
   cluster_desc,
   section_colors = analysis$section_colors,
   top_n = 10
 )
+```
 
-# 1. Horizontal bar chart: top TF-IDF terms per section (2-column grid layout)
-plots$tfidf_bars
+```{r echo=FALSE, results='hide'}
+# Save plots as static images for GitHub README
+if (!dir.exists("man/figures")) dir.create("man/figures", recursive = TRUE)
 
-# 2. Heatmap: terms vs sections (shows unique vs shared terms)
-plots$tfidf_heatmap
+htmlwidgets::saveWidget(plots$tfidf_bars, "temp_tfidf_bars.html", selfcontained = TRUE)
+webshot::webshot("temp_tfidf_bars.html", "man/figures/README-tfidf-bars.png",
+                 vwidth = 1200, vheight = 800)
+file.remove("temp_tfidf_bars.html")
 
-# 3. Bar chart: reference counts per section
-plots$references_per_section
+htmlwidgets::saveWidget(plots$tfidf_heatmap, "temp_tfidf_heatmap.html", selfcontained = TRUE)
+webshot::webshot("temp_tfidf_heatmap.html", "man/figures/README-tfidf-heatmap.png",
+                 vwidth = 1000, vheight = 600)
+file.remove("temp_tfidf_heatmap.html")
+
+htmlwidgets::saveWidget(plots$references_per_section, "temp_refs_section.html", selfcontained = TRUE)
+webshot::webshot("temp_refs_section.html", "man/figures/README-refs-per-section.png",
+                 vwidth = 1000, vheight = 600)
+file.remove("temp_refs_section.html")
+```
+
+**1. TF-IDF terms per section (2-column grid layout)**
+
+```{r echo=FALSE, out.width="100%"}
+knitr::include_graphics("man/figures/README-tfidf-bars.png")
+```
+
+**2. Heatmap: terms vs sections (unique vs shared terms)**
+
+```{r echo=FALSE, out.width="100%"}
+knitr::include_graphics("man/figures/README-tfidf-heatmap.png")
+```
+
+**3. References per section**
+
+```{r echo=FALSE, out.width="100%"}
+knitr::include_graphics("man/figures/README-refs-per-section.png")
 ```
 
 The TF-IDF bar chart uses a 2-column grid layout with color-coded section titles for a compact, readable overview. All plots display sections in the order they appear in the paper, use consistent styling, and include interactive hover information. Colors match the section colors used in the citation network.
@@ -333,14 +362,16 @@ word_dist <- calculate_word_distribution(doc, method_terms)
 
 ### Create interactive visualization
 
-```{r eval=TRUE}
-# Create and save the plot
+```{r}
+# Create the plot
 p <- plot_word_distribution(word_dist, plot_type = "line", smooth = TRUE, show_points = TRUE)
+```
 
+```{r echo=FALSE, results='hide'}
 # Save as static image for GitHub
 if (!dir.exists("man/figures")) dir.create("man/figures", recursive = TRUE)
 htmlwidgets::saveWidget(p, "temp_plot.html", selfcontained = TRUE)
-webshot::webshot("temp_plot.html", "man/figures/README-word-distribution.png", 
+webshot::webshot("temp_plot.html", "man/figures/README-word-distribution.png",
                  vwidth = 1000, vheight = 600)
 file.remove("temp_plot.html")
 ```
