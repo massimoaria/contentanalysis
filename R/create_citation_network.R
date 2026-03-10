@@ -836,8 +836,13 @@ plot_citation_clusters <- function(
     }
   }
 
+  # Truncate long section labels for axis display
+  trunc_sections <- ifelse(nchar(all_sections) > 30,
+                           paste0(substr(all_sections, 1, 27), "..."),
+                           all_sections)
+
   tfidf_heatmap <- plotly::plot_ly(
-    x = all_sections,
+    x = trunc_sections,
     y = heatmap_terms,
     z = heatmap_matrix,
     type = "heatmap",
@@ -856,7 +861,7 @@ plot_citation_clusters <- function(
         tickangle = -45,
         tickfont = list(size = 11),
         categoryorder = "array",
-        categoryarray = all_sections
+        categoryarray = trunc_sections
       ),
       yaxis = list(
         title = list(text = "Term", font = axis_font),
@@ -865,7 +870,7 @@ plot_citation_clusters <- function(
       ),
       plot_bgcolor = "#fafafa",
       paper_bgcolor = "white",
-      margin = list(l = 140, r = 40, t = 60, b = 100)
+      margin = list(l = 140, r = 40, t = 60, b = 140)
     ) %>%
     plotly::config(
       displayModeBar = TRUE,
@@ -890,6 +895,14 @@ plot_citation_clusters <- function(
     if (s %in% names(section_colors)) section_colors[s] else "#CCCCCC"
   })
 
+  # Truncate section labels for bar chart x-axis
+  trunc_ref_sections <- ifelse(nchar(ref_counts$section) > 30,
+                               paste0(substr(ref_counts$section, 1, 27), "..."),
+                               ref_counts$section)
+  trunc_all_sections_ref <- ifelse(nchar(all_sections) > 30,
+                                   paste0(substr(all_sections, 1, 27), "..."),
+                                   all_sections)
+
   hover_refs <- paste0(
     "<b>Section:</b> ", ref_counts$section, "<br>",
     "<b>References:</b> ", ref_counts$n_references
@@ -897,7 +910,7 @@ plot_citation_clusters <- function(
 
   references_per_section <- plotly::plot_ly(
     data = ref_counts,
-    x = ~section,
+    x = trunc_ref_sections,
     y = ~n_references,
     type = "bar",
     marker = list(color = bar_colors),
@@ -917,7 +930,7 @@ plot_citation_clusters <- function(
         tickangle = -45,
         gridcolor = "#e0e0e0",
         categoryorder = "array",
-        categoryarray = all_sections
+        categoryarray = trunc_all_sections_ref
       ),
       yaxis = list(
         title = list(text = "Number of References", font = axis_font),
@@ -925,7 +938,7 @@ plot_citation_clusters <- function(
       ),
       plot_bgcolor = "#fafafa",
       paper_bgcolor = "white",
-      margin = list(l = 60, r = 40, t = 60, b = 100)
+      margin = list(l = 60, r = 40, t = 60, b = 140)
     ) %>%
     plotly::config(
       displayModeBar = TRUE,
