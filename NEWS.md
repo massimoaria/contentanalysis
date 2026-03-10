@@ -1,3 +1,5 @@
+# contentanalysis (development version)
+
 # contentanalysis 1.0.0
 
 * Improved PDF import module to identify 
