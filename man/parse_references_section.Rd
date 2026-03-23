@@ -7,25 +7,29 @@
 parse_references_section(references_text)
 }
 \arguments{
-\item{references_text}{Character string. Text of references section.}
+\item{references_text}{Character string. Text of references section,
+with individual references separated by double newlines.}
 }
 \value{
 Tibble with columns:
 \itemize{
-\item ref_id: Unique reference identifier
+\item ref_id: Unique reference identifier (REF_1, REF_2, ...)
 \item ref_full_text: Complete reference text
-\item ref_authors: Author string
-\item ref_year: Publication year
+\item ref_authors: Author string (text before year)
+\item ref_year: Publication year (e.g., "2023", "2023a")
 \item ref_first_author: First author surname
-\item ref_first_author_normalized: Lowercase first author
+\item ref_first_author_normalized: Lowercase, accent-stripped first author
 \item ref_second_author: Second author surname (if present)
 \item ref_second_author_normalized: Lowercase second author
 \item n_authors: Number of authors (99 = et al.)
+\item ref_title: Extracted title (text after year)
+\item ref_doi: DOI if found in reference text
 }
 }
 \description{
 Parses a references section into individual entries with extracted metadata
-including authors, year, and title information.
+including authors, year, and title information. Automatically detects the
+reference format (APA parenthetical, Harvard bare year, or numbered).
 }
 \examples{
 \dontrun{

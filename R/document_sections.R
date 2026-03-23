@@ -308,6 +308,53 @@ split_into_sections <- function(text, file_path = NULL) {
     }
   }
 
+  # Pass 3 (emergency): specifically look for References/Bibliography if not found
+  ref_names <- c("References", "REFERENCES", "Bibliography", "BIBLIOGRAPHY")
+  has_refs <- any(ref_names %in% names(sections_found))
+  if (!has_refs) {
+    for (ref_name in ref_names) {
+      # Try multiple patterns from most strict to most permissive
+      ref_patterns <- c(
+        paste0("\\n\\n\\s*", ref_name, "\\s*\\n"),           # \n\nReferences\n
+        paste0("\\n\\s*", ref_name, "\\s*\\n"),               # \nReferences\n
+        paste0("\\n\\n\\s*", ref_name, "\\s"),                # \n\nReferences<space>
+        paste0("\\n\\s*", ref_name, "\\s"),                   # \nReferences<space>
+        paste0("\\s", ref_name, "\\s+(?=[A-Z][a-z])"),       # ...text References Author...
+        paste0("\\s", ref_name, "\\s*\\n")                   # ...text References\n
+      )
+      for (pat in ref_patterns) {
+        # Use the LAST occurrence (most likely the actual bibliography, not in-text mentions)
+        all_matches <- gregexpr(pat, text, perl = TRUE)[[1]]
+        if (all_matches[1] == -1) next
+
+        # Take the last match (bibliography is typically at the end)
+        match_idx <- length(all_matches)
+        match_pos <- all_matches[match_idx]
+        match_len <- attr(all_matches, "match.length")[match_idx]
+
+        # Verify it's followed by reference-like content
+        match_end <- match_pos + match_len
+        after_text <- substr(text, match_end, min(nchar(text), match_end + 300))
+        looks_like_refs <- grepl(
+          "^\\s*[A-Z][a-z\u00C0-\u00FF]|^\\s*\\[?\\d+\\]?[.\\s]|^\\s*\\d+\\.\\s",
+          after_text, perl = TRUE
+        )
+        # Also verify it's in the last 30% of the document (bibliography is near the end)
+        is_near_end <- match_pos > nchar(text) * 0.5
+
+        if (looks_like_refs && is_near_end) {
+          canonical_name <- if (grepl("(?i)biblio", ref_name)) "Bibliography" else "References"
+          sections_found[[canonical_name]] <- list(
+            start = as.integer(match_pos),
+            length = as.integer(match_len)
+          )
+          break
+        }
+      }
+      if (any(c("References", "Bibliography") %in% names(sections_found))) break
+    }
+  }
+
   if (length(sections_found) == 0) {
     message("No clear sections found. Returning full text as single element.")
     return(list("Full_text" = text))
@@ -393,43 +440,146 @@ normalize_references_section <- function(text_sections) {
   }
 
   ref_text <- text_sections[["References"]]
-
-  ref_start_pattern <- "([A-Z][a-z]+(?:['-][A-Z][a-z]+)?,\\s+[A-Z]\\.)"
-
-  matches <- gregexpr(ref_start_pattern, ref_text, perl = TRUE)[[1]]
-
-  if (matches[1] == -1) {
+  if (is.null(ref_text) || nchar(trimws(ref_text)) < 20) {
     return(text_sections)
   }
 
-  start_positions <- as.integer(matches)
+  # Pre-processing Step 1: collapse fragmented numbered references
+  # Many PDFs produce: "1.\n\nLocker D, Allen F.\n\nWhat do measures..."
+  # We need to join "N.\n\n" with the next block when N is a reference number
+  # First, rejoin "N.\n\n" followed by author name (not another number)
+  ref_text <- gsub(
+    "(\\d+)\\.\\s*\\n\\n+\\s*(?=[A-Z][a-z\u00C0-\u00FF])",
+    "\\1. ",
+    ref_text, perl = TRUE
+  )
+  # Also rejoin "[N]\n\n" followed by author name
+  ref_text <- gsub(
+    "(\\[\\d+\\])\\s*\\n\\n+\\s*(?=[A-Z][a-z\u00C0-\u00FF])",
+    "\\1 ",
+    ref_text, perl = TRUE
+  )
 
-  individual_refs <- character()
+  # Pre-processing Step 2: insert \n\n before numbered reference starts that are inline
+  # Handles: "...text. 2. Author..." or "...text. [2] Author..."
+  ref_text <- gsub(
+    "(?<=[.;])\\s+(?=\\d+\\.\\s+[A-Z][a-z])",
+    "\n\n",
+    ref_text, perl = TRUE
+  )
+  ref_text <- gsub(
+    "(?<=[.;])\\s+(?=\\[\\d+\\]\\s*[A-Z])",
+    "\n\n",
+    ref_text, perl = TRUE
+  )
 
-  for (i in seq_along(start_positions)) {
-    start_pos <- start_positions[i]
+  # Also insert \n\n before author-year starts that are inline
+  # Pattern: end of ref (period/number) followed by new Surname, I.
+  ref_text <- gsub(
+    "(?<=\\.)\\s+(?=[A-Z][a-z\u00C0-\u00FF]+(?:[-'][A-Z][a-z]+)?,\\s+[A-Z]\\.)",
+    "\n\n",
+    ref_text, perl = TRUE
+  )
 
-    if (i < length(start_positions)) {
-      end_pos <- start_positions[i + 1] - 1
-    } else {
-      end_pos <- nchar(ref_text)
+  # Detect the reference format to choose the right start-of-reference pattern
+  # Format 1: Author-year with parentheses: "Surname, I. (2020)."
+  # Format 2: Author-year without parentheses: "Surname, I., 2020."
+  # Format 3: Numbered: "[1]" or "1."
+
+  # Split into blocks separated by \n\n
+  blocks <- strsplit(ref_text, "\\n\\n+")[[1]]
+  blocks <- trimws(blocks)
+  blocks <- blocks[nchar(blocks) > 0]
+
+  if (length(blocks) == 0) return(text_sections)
+
+  # Patterns that indicate the START of a new reference
+  author_year_start <- "^[A-Z][a-z\u00C0-\u00FF]+(?:[-'][A-Z][a-z]+)?,\\s+[A-Z]\\."
+  numbered_bracket_start <- "^\\[\\d+\\]"
+  numbered_dot_start <- "^\\d+\\.\\s+[A-Z]"
+  # Also detect institutional authors: "AIOM", "WHO", etc.
+  institutional_start <- "^[A-Z]{2,}[,.]"
+
+  # Detect dominant format from blocks
+  n_author_year <- sum(grepl(author_year_start, blocks, perl = TRUE))
+  n_numbered_bracket <- sum(grepl(numbered_bracket_start, blocks, perl = TRUE))
+  n_numbered_dot <- sum(grepl(numbered_dot_start, blocks, perl = TRUE))
+
+  # Choose reference start detection function based on dominant format
+  is_ref_start <- function(block) {
+    if (nchar(block) == 0) return(FALSE)
+
+    # Numbered formats are unambiguous
+    if (grepl(numbered_bracket_start, block, perl = TRUE)) return(TRUE)
+
+    # Numbered dot format: "1. Author..." or "12. Author..."
+    if (grepl("^\\d+\\.\\s+[A-Z]", block, perl = TRUE)) return(TRUE)
+
+    # Author-year format: must start with Surname, Initial.
+    if (grepl(author_year_start, block, perl = TRUE)) {
+      # Extra check: block should contain a year (near the start, within first 200 chars)
+      prefix <- substr(block, 1, min(200, nchar(block)))
+      has_year <- grepl("\\b(1[89]\\d{2}|20[0-2]\\d)[a-z]?\\b", prefix, perl = TRUE)
+      # Or block is long enough to be a complete reference
+      if (has_year || nchar(block) >= 80) return(TRUE)
     }
 
-    ref_block <- substr(ref_text, start_pos, end_pos)
+    # Author format without comma-initial: "Surname Name (Year)" e.g. "Albuquerque N (2016)"
+    if (grepl("^[A-Z][a-z\u00C0-\u00FF]+\\s+[A-Z]", block, perl = TRUE) &&
+        grepl("\\b(1[89]\\d{2}|20[0-2]\\d)", block, perl = TRUE) &&
+        nchar(block) >= 40) {
+      return(TRUE)
+    }
 
-    ref_block <- gsub("\\n+", " ", ref_block)
-    ref_block <- gsub("\\s+", " ", ref_block)
-    ref_block <- stringr::str_trim(ref_block)
+    # Institutional author
+    if (grepl(institutional_start, block, perl = TRUE) && nchar(block) >= 40) {
+      return(TRUE)
+    }
 
-    individual_refs <- c(individual_refs, ref_block)
+    FALSE
   }
 
-  normalized_refs <- paste(individual_refs, collapse = "\n\n")
+  # Re-assemble: merge blocks that are NOT the start of a new reference
+  # into the previous reference
+  assembled_refs <- character()
+  current_ref <- ""
 
+  for (i in seq_along(blocks)) {
+    block <- blocks[i]
+
+    if (is_ref_start(block)) {
+      # Save previous ref if any
+      if (nchar(current_ref) > 0) {
+        assembled_refs <- c(assembled_refs, current_ref)
+      }
+      current_ref <- block
+    } else {
+      # Append to current ref (continuation)
+      if (nchar(current_ref) > 0) {
+        current_ref <- paste(current_ref, block)
+      } else {
+        # No current ref yet - start one anyway
+        current_ref <- block
+      }
+    }
+  }
+  # Save last ref
+  if (nchar(current_ref) > 0) {
+    assembled_refs <- c(assembled_refs, current_ref)
+  }
+
+  # Cleanup: collapse internal whitespace, trim
+  assembled_refs <- gsub("\\s+", " ", assembled_refs)
+  assembled_refs <- trimws(assembled_refs)
+  assembled_refs <- assembled_refs[nchar(assembled_refs) > 0]
+
+  if (length(assembled_refs) == 0) return(text_sections)
+
+  normalized_refs <- paste(assembled_refs, collapse = "\n\n")
   text_sections[["References"]] <- normalized_refs
 
   message(sprintf("Normalized %d references with consistent \\n\\n separators",
-                  length(individual_refs)))
+                  length(assembled_refs)))
 
   return(text_sections)
 }
