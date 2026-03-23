@@ -18,7 +18,9 @@ analyze_scientific_content(
   ngram_range = c(1, 3),
   parse_multiple_citations = TRUE,
   use_sections_for_citations = "auto",
-  n_segments_citations = 10
+  n_segments_citations = 10,
+  rhetorical_moves = FALSE,
+  rhetorical_model = "2.5-flash"
 )
 }
 \arguments{
@@ -57,6 +59,12 @@ Get a free key at \url{https://openalex.org/}.}
 \item{use_sections_for_citations}{Logical or "auto". Use sections for mapping (default: "auto").}
 
 \item{n_segments_citations}{Integer. Segments if not using sections (default: 10).}
+
+\item{rhetorical_moves}{Logical. If TRUE, classifies rhetorical moves using
+Gemini LLM + rule-based approach. Requires GEMINI_API_KEY. Default is FALSE.}
+
+\item{rhetorical_model}{Character. Gemini model for rhetorical move classification.
+Default is "2.5-flash".}
 }
 \value{
 List with class "enhanced_scientific_content_analysis" containing:
@@ -70,6 +78,8 @@ List with class "enhanced_scientific_content_analysis" containing:
 \item word_frequencies: Word frequency table
 \item ngrams: N-gram frequency tables
 \item network_data: Citation co-occurrence data
+\item rhetorical_moves: (if \code{rhetorical_moves = TRUE}) Rhetorical move
+classification with sentence-level results and aggregated blocks
 \item summary: Overall analysis summary
 }
 }

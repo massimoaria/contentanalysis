@@ -362,6 +362,10 @@ map_citations_to_segments <- function(
 #' @param parse_multiple_citations Logical. Parse complex citations (default: TRUE).
 #' @param use_sections_for_citations Logical or "auto". Use sections for mapping (default: "auto").
 #' @param n_segments_citations Integer. Segments if not using sections (default: 10).
+#' @param rhetorical_moves Logical. If TRUE, classifies rhetorical moves using
+#'   Gemini LLM + rule-based approach. Requires GEMINI_API_KEY. Default is FALSE.
+#' @param rhetorical_model Character. Gemini model for rhetorical move classification.
+#'   Default is "2.5-flash".
 #'
 #' @return List with class "enhanced_scientific_content_analysis" containing:
 #'   \itemize{
@@ -374,6 +378,8 @@ map_citations_to_segments <- function(
 #'     \item word_frequencies: Word frequency table
 #'     \item ngrams: N-gram frequency tables
 #'     \item network_data: Citation co-occurrence data
+#'     \item rhetorical_moves: (if \code{rhetorical_moves = TRUE}) Rhetorical move
+#'       classification with sentence-level results and aggregated blocks
 #'     \item summary: Overall analysis summary
 #'   }
 #'
@@ -441,7 +447,9 @@ analyze_scientific_content <- function(
   ngram_range = c(1, 3),
   parse_multiple_citations = TRUE,
   use_sections_for_citations = "auto",
-  n_segments_citations = 10
+  n_segments_citations = 10,
+  rhetorical_moves = FALSE,
+  rhetorical_model = "2.5-flash"
 ) {
   # Configure OpenAlex API key
   # Priority: 1) explicit parameter, 2) OPENALEX_API_KEY env var, 3) openalexR defaults
@@ -1172,6 +1180,21 @@ analyze_scientific_content <- function(
           ),
         by = "citation_id"
       )
+  }
+
+  # Rhetorical move analysis (optional)
+  if (rhetorical_moves) {
+    api_key_gemini <- Sys.getenv("GEMINI_API_KEY")
+    results$rhetorical_moves <- classify_rhetorical_moves(
+      text,
+      api_key = api_key_gemini,
+      model = rhetorical_model
+    )
+    message(sprintf(
+      "Rhetorical moves: %d sentences classified in %d blocks",
+      results$rhetorical_moves$summary$total_sentences,
+      nrow(results$rhetorical_moves$move_blocks)
+    ))
   }
 
   # Compile results
