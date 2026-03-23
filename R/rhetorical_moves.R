@@ -189,7 +189,7 @@ segment_sentences <- function(text_sections) {
   abbrev_pattern <- paste0("(?<!", abbrev_protect, ")", collapse = "")
 
   all_sentences <- list()
-  global_id <- 0
+  global_id <- 0L
 
   for (section_name in names(text_sections)) {
     section_text <- text_sections[[section_name]]
@@ -227,7 +227,7 @@ segment_sentences <- function(text_sections) {
     }
 
     for (j in seq_along(sentences)) {
-      global_id <- global_id + 1
+      global_id <- global_id + 1L
       all_sentences[[global_id]] <- list(
         sentence_id = global_id,
         section = section_name,
@@ -247,7 +247,7 @@ segment_sentences <- function(text_sections) {
   }
 
   tibble::tibble(
-    sentence_id = vapply(all_sentences, `[[`, integer(1), "sentence_id"),
+    sentence_id = vapply(all_sentences, `[[`, numeric(1), "sentence_id"),
     section = vapply(all_sentences, `[[`, character(1), "section"),
     text = vapply(all_sentences, `[[`, character(1), "text"),
     position_pct = vapply(all_sentences, `[[`, numeric(1), "position_pct")
@@ -445,13 +445,13 @@ aggregate_moves <- function(sentences_df) {
   )
 
   tibble::tibble(
-    block_id = vapply(blocks, `[[`, integer(1), "block_id"),
+    block_id = vapply(blocks, `[[`, numeric(1), "block_id"),
     section = vapply(blocks, `[[`, character(1), "section"),
     move = vapply(blocks, `[[`, character(1), "move"),
     step = vapply(blocks, `[[`, character(1), "step"),
-    start_sentence = vapply(blocks, `[[`, integer(1), "start_sentence"),
-    end_sentence = vapply(blocks, `[[`, integer(1), "end_sentence"),
-    n_sentences = vapply(blocks, `[[`, integer(1), "n_sentences"),
+    start_sentence = vapply(blocks, `[[`, numeric(1), "start_sentence"),
+    end_sentence = vapply(blocks, `[[`, numeric(1), "end_sentence"),
+    n_sentences = vapply(blocks, `[[`, numeric(1), "n_sentences"),
     text_preview = vapply(blocks, `[[`, character(1), "text_preview"),
     avg_confidence = vapply(blocks, `[[`, numeric(1), "avg_confidence")
   )
