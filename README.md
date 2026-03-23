@@ -70,6 +70,11 @@ analytical framework:
     citation co-occurrence patterns and conceptual relationships within
     the document
 
+7.  **Rhetorical Move Analysis**: Automatically classifies sentences
+    according to their rhetorical function (Swales’ CARS model and
+    extensions), combining rule-based cue phrase detection with LLM
+    classification via Google Gemini API
+
 ### The Complete Workflow
 
     PDF Document → Text Extraction → Citation Detection → Reference Parsing
@@ -78,7 +83,7 @@ analytical framework:
     ↓
     Citation-Reference Matching → Enriched Dataset
     ↓
-    Network Analysis + Text Analytics + Bibliometric Indicators
+    Network Analysis + Text Analytics + Bibliometric Indicators + Rhetorical Move Analysis
 
 The result is a rich, structured dataset that transforms a static PDF
 into an analyzable knowledge object, ready for: - **Content analysis**:
@@ -86,7 +91,9 @@ Understanding what concepts and methods are discussed - **Citation
 analysis**: Examining how knowledge is constructed and referenced -
 **Temporal analysis**: Tracking the evolution of ideas through citation
 patterns - **Network analysis**: Visualizing intellectual connections -
-**Readability assessment**: Evaluating text complexity and accessibility
+**Readability assessment**: Evaluating text complexity and
+accessibility - **Discourse analysis**: Mapping the rhetorical structure
+of scientific argumentation
 
 ## Key Features
 
@@ -156,6 +163,28 @@ patterns - **Network analysis**: Visualizing intellectual connections -
 - Word distribution tracking across document sections
 - Methodological term tracking
 
+### Rhetorical Move Analysis
+
+- Automatic classification of rhetorical moves at the sentence level
+- Based on Swales’ CARS (Create a Research Space) model with extensions
+  for Literature Review and Discussion/Conclusion sections
+- Hybrid approach: rule-based cue phrase detection + LLM classification
+  (Google Gemini API)
+- Taxonomy coverage:
+  - **Introduction**: Establishing a territory, Establishing a niche,
+    Occupying the niche
+  - **Literature Review / Background**: Establishing context, Reviewing
+    prior work, Evaluating prior work
+  - **Discussion / Conclusion**: Consolidating results, Evaluating the
+    study, Looking forward
+- Sentence-level output with move, step, confidence score, and
+  classification method
+- Automatic aggregation of consecutive sentences into rhetorical blocks
+- Move flow visualization showing the argumentative structure of the
+  paper
+- Results/Findings sections are automatically excluded (not part of the
+  rhetorical model)
+
 ### Bibliometric Indicators
 
 - Citation density (citations per 1000 words)
@@ -200,22 +229,20 @@ download.file(paper_url, destfile = "example_paper.pdf", mode = "wb")
 doc <- pdf2txt_auto("example_paper.pdf",
                     n_columns = 2,
                     citation_type = "author_year")
-#> Stripped running header (6 occurrences, 40 chars)
 #> Using 17 sections from PDF table of contents
-#> Found 16 sections: Preface, Introduction, Related work, Internal processing approaches, Random forest extra information, Visualization toolkits, Post-Hoc approaches, Size reduction, Rule extraction, Local explanation, Comparison study, Experimental design, Analysis, Conclusion, Acknowledgment, References
-#> Normalized 77 references with consistent \n\n separators
+#> Found 15 sections: Introduction, Related work, Internal processing approaches, Random forest extra information, Visualization toolkits, Post-Hoc approaches, Size reduction, Rule extraction, Local explanation, Comparison study, Experimental design, Analysis, Conclusion, Acknowledgment, References
+#> Normalized 32 references with consistent \n\n separators
 
 # Check detected sections
 names(doc)
-#>  [1] "Full_text"                       "Preface"                        
-#>  [3] "Introduction"                    "Related work"                   
-#>  [5] "Internal processing approaches"  "Random forest extra information"
-#>  [7] "Visualization toolkits"          "Post-Hoc approaches"            
-#>  [9] "Size reduction"                  "Rule extraction"                
-#> [11] "Local explanation"               "Comparison study"               
-#> [13] "Experimental design"             "Analysis"                       
-#> [15] "Conclusion"                      "Acknowledgment"                 
-#> [17] "References"
+#>  [1] "Full_text"                       "Introduction"                   
+#>  [3] "Related work"                    "Internal processing approaches" 
+#>  [5] "Random forest extra information" "Visualization toolkits"         
+#>  [7] "Post-Hoc approaches"             "Size reduction"                 
+#>  [9] "Rule extraction"                 "Local explanation"              
+#> [11] "Comparison study"                "Experimental design"            
+#> [13] "Analysis"                        "Conclusion"                     
+#> [15] "Acknowledgment"                  "References"
 ```
 
 ### Perform comprehensive content analysis with CrossRef and OpenAlex enrichment
@@ -232,6 +259,8 @@ analysis <- analyze_scientific_content(
 #> Successfully retrieved 33 references from CrossRef
 #> Fetching Open Access metadata for 14 DOIs from OpenAlex...
 #> Successfully retrieved metadata for 13 references from OpenAlex
+#> Enriching CrossRef references with 32 PDF-parsed entries...
+#> Enriched 10 CrossRef references with PDF-parsed data
 ```
 
 This single function call:
@@ -247,10 +276,10 @@ This single function call:
 ``` r
 analysis$summary
 #> $total_words_analyzed
-#> [1] 3453
+#> [1] 3230
 #> 
 #> $unique_words
-#> [1] 1310
+#> [1] 1238
 #> 
 #> $citations_extracted
 #> [1] 49
@@ -265,27 +294,26 @@ analysis$summary
 #> [1] 12
 #> 
 #> $lexical_diversity
-#> [1] 0.3793802
+#> [1] 0.3832817
 #> 
 #> $average_citation_context_length
-#> [1] 3230.429
+#> [1] 2856.061
 #> 
 #> $citation_density_per_1000_words
-#> [1] 6.47
+#> [1] 6.83
 #> 
 #> $references_parsed
 #> [1] 33
 #> 
 #> $citations_matched_to_refs
-#> [1] 42
+#> [1] 43
 #> 
 #> $match_quality
-#> # A tibble: 3 × 3
+#> # A tibble: 2 × 3
 #>   match_confidence     n percentage
 #>   <chr>            <int>      <dbl>
-#> 1 high                42       85.7
+#> 1 high                43       87.8
 #> 2 no_match_author      6       12.2
-#> 3 no_match_year        1        2  
 #> 
 #> $citation_type_used
 #> [1] "author_year"
@@ -299,7 +327,7 @@ readability
 #> # A tibble: 1 × 12
 #>   flesch_kincaid_grade flesch_reading_ease automated_readability_index
 #>                  <dbl>               <dbl>                       <dbl>
-#> 1                 12.7                33.3                        12.1
+#> 1                 12.5                34.2                        11.9
 #> # ℹ 9 more variables: gunning_fog_index <dbl>, n_sentences <int>,
 #> #   n_words <int>, n_syllables <dbl>, n_characters <int>,
 #> #   n_complex_words <int>, avg_sentence_length <dbl>,
@@ -310,20 +338,18 @@ readability
 
 ``` r
 analysis$citation_metrics$type_distribution
-#> # A tibble: 11 × 3
-#>    citation_type                   n percentage
-#>    <chr>                       <int>      <dbl>
-#>  1 parsed_from_multiple           12      24.5 
-#>  2 author_year_basic               9      18.4 
-#>  3 narrative_etal                  7      14.3 
-#>  4 author_year_and                 6      12.2 
-#>  5 author_year_etal                3       6.12
-#>  6 narrative_three_authors_and     3       6.12
-#>  7 narrative_two_authors_and       3       6.12
-#>  8 narrative_four_authors_and      2       4.08
-#>  9 see_citations                   2       4.08
-#> 10 author_year_ampersand           1       2.04
-#> 11 doi_pattern                     1       2.04
+#> # A tibble: 9 × 3
+#>   citation_type                   n percentage
+#>   <chr>                       <int>      <dbl>
+#> 1 parsed_from_multiple           12      24.5 
+#> 2 author_year_basic               9      18.4 
+#> 3 author_year_and                 8      16.3 
+#> 4 narrative_etal                  7      14.3 
+#> 5 author_year_etal                3       6.12
+#> 6 narrative_three_authors_and     3       6.12
+#> 7 narrative_two_authors_and       3       6.12
+#> 8 narrative_four_authors_and      2       4.08
+#> 9 see_citations                   2       4.08
 ```
 
 ### Analyze citation contexts
@@ -331,14 +357,14 @@ analysis$citation_metrics$type_distribution
 ``` r
 head(analysis$citation_contexts[, c("citation_text_clean", "section", "full_context")])
 #> # A tibble: 6 × 3
-#>   citation_text_clean                                       section full_context
-#>   <chr>                                                     <chr>   <chr>       
-#> 1 (Mitchell, 1997)                                          Introd… systems ide…
-#> 2 https://doi.org/10.1016/j.mlwa.2021.100094                Introd… interpretat…
-#> 3 (Breiman, 2001)                                           Introd… random subs…
-#> 4 (see Breiman, 1996)                                       Introd… model that …
-#> 5 (Hastie, supervised learning (Breiman, Friedman, Tibshir… Introd… by calculat…
-#> 6 (Hastie et al., 2009)                                     Introd… but it is n…
+#>   citation_text_clean                        section      full_context          
+#>   <chr>                                      <chr>        <chr>                 
+#> 1 (Mitchell, 1997)                           Introduction on their own and make…
+#> 2 (Breiman, Friedman, Olshen, & Stone, 1984) Introduction are supervised learni…
+#> 3 (Breiman, 2001)                            Introduction node of a random subs…
+#> 4 (see Breiman, 1996)                        Introduction single training set a…
+#> 5 (Hastie, Tibshirani, & Friedman, 2009)     Introduction by calculating predic…
+#> 6 (Hastie et al., 2009)                      Introduction accuracy is not cruci…
 ```
 
 ## Citation Network Visualization
@@ -359,7 +385,7 @@ network <- create_citation_network(
 network
 ```
 
-<img src="man/figures/README-unnamed-chunk-10-1.png" width="100%" />
+<img src="man/figures/README-unnamed-chunk-10-1.png" alt="" width="100%" />
 
 ### Access network statistics
 
@@ -368,17 +394,17 @@ stats <- attr(network, "stats")
 
 # Network size
 cat("Nodes:", stats$n_nodes, "\n")
-#> Nodes: 28
+#> Nodes: 29
 cat("Edges:", stats$n_edges, "\n")
-#> Edges: 49
+#> Edges: 50
 cat("Average distance:", stats$avg_distance, "characters\n")
-#> Average distance: 245.4 characters
+#> Average distance: 246.9 characters
 
 # Citations by section
 print(stats$section_distribution)
 #>                   primary_section n
 #> 1                    Related work 6
-#> 2                    Introduction 4
+#> 2                    Introduction 5
 #> 3                  Size reduction 4
 #> 4             Experimental design 3
 #> 5 Random forest extra information 3
@@ -458,13 +484,13 @@ cluster_desc$cluster_summary
 #> # A tibble: 10 × 3
 #>    section                         n_references top_terms                       
 #>    <chr>                                  <int> <chr>                           
-#>  1 Introduction                               4 learning, machine, machine lear…
-#>  2 Related work                               8 black, black box, box, acm, sur…
+#>  1 Introduction                               5 learning, bagging, bagging pred…
+#>  2 Related work                               8 interpretable machine, black, b…
 #>  3 Random forest extra information            5 forests, random forests, annals…
-#>  4 Visualization toolkits                     4 analytics, analytics ieee, comp…
+#>  4 Visualization toolkits                     4 tree, forests, random forests, …
 #>  5 Size reduction                             4 adaptive, adaptive diagnostic, …
 #>  6 Rule extraction                            2 annals applied, applied, applie…
-#>  7 Local explanation                          3 models, classification, classif…
+#>  7 Local explanation                          3 black, black box, box, models, …
 #>  8 Comparison study                           1 annals applied, applied, applie…
 #>  9 Experimental design                        3 bell, bell laboratories, labora…
 #> 10 Analysis                                   3 domains, domains acm, imbalance…
@@ -472,18 +498,18 @@ cluster_desc$cluster_summary
 # View detailed TF-IDF scores
 cluster_desc$cluster_descriptions
 #> # A tibble: 83 × 7
-#>    section      ngram              ngram_size     n     tf   idf tf_idf
-#>    <chr>        <chr>                   <int> <int>  <dbl> <dbl>  <dbl>
-#>  1 Introduction learning                    1     2 0.143   1.20 0.172 
-#>  2 Introduction machine                     1     2 0.143   1.20 0.172 
-#>  3 Introduction machine learning            2     2 0.143   1.20 0.172 
-#>  4 Introduction bagging                     1     1 0.0714  2.30 0.164 
-#>  5 Introduction bagging predictors          2     1 0.0714  2.30 0.164 
-#>  6 Introduction predictors                  1     1 0.0714  2.30 0.164 
-#>  7 Introduction predictors machine          2     1 0.0714  2.30 0.164 
-#>  8 Introduction forests machine             2     1 0.0714  1.61 0.115 
-#>  9 Introduction forests                     1     1 0.0714  1.20 0.0860
-#> 10 Introduction random forests              2     1 0.0714  1.20 0.0860
+#>    section      ngram                ngram_size     n    tf   idf tf_idf
+#>    <chr>        <chr>                     <int> <int> <dbl> <dbl>  <dbl>
+#>  1 Introduction learning                      1     2  0.08  1.61 0.129 
+#>  2 Introduction bagging                       1     1  0.04  2.30 0.0921
+#>  3 Introduction bagging predictors            2     1  0.04  2.30 0.0921
+#>  4 Introduction belmont                       1     1  0.04  2.30 0.0921
+#>  5 Introduction belmont wadsworth             2     1  0.04  2.30 0.0921
+#>  6 Introduction data                          1     1  0.04  2.30 0.0921
+#>  7 Introduction data mining                   2     1  0.04  2.30 0.0921
+#>  8 Introduction elements                      1     1  0.04  2.30 0.0921
+#>  9 Introduction elements statistical          2     1  0.04  2.30 0.0921
+#> 10 Introduction inference                     1     1  0.04  2.30 0.0921
 #> # ℹ 73 more rows
 ```
 
@@ -494,21 +520,126 @@ network:
 
 **1. TF-IDF terms per section (2-column grid layout)**
 
-<img src="man/figures/README-tfidf-bars.png" width="100%" />
+<img src="man/figures/README-tfidf-bars.png" alt="" width="100%" />
 
 **2. Heatmap: terms vs sections (unique vs shared terms)**
 
-<img src="man/figures/README-tfidf-heatmap.png" width="100%" />
+<img src="man/figures/README-tfidf-heatmap.png" alt="" width="100%" />
 
 **3. References per section**
 
-<img src="man/figures/README-refs-per-section.png" width="100%" />
+<img src="man/figures/README-refs-per-section.png" alt="" width="100%" />
 
 The TF-IDF bar chart uses a 2-column grid layout with color-coded
 section titles for a compact, readable overview. All plots display
 sections in the order they appear in the paper, use consistent styling,
 and include interactive hover information. Colors match the section
 colors used in the citation network.
+
+## Rhetorical Move Analysis
+
+Automatically classify the rhetorical function of each sentence in a
+scientific paper, based on Swales’ CARS model and extensions for
+Literature Review and Discussion sections.
+
+### Rule-based classification (no API key needed)
+
+``` r
+# Classify rhetorical moves using cue phrase dictionaries
+moves <- classify_rhetorical_moves(doc, use_llm = FALSE)
+#> Analyzing rhetorical moves in 12 sections: Introduction, Related work, Internal processing approaches, Random forest extra information, Visualization toolkits, Post-Hoc approaches, Size reduction, Rule extraction, Local explanation, Comparison study, Analysis, Conclusion
+#> Segmented 194 sentences
+
+# Sentence-level classification
+head(moves$sentences[, c("sentence_id", "section", "move", "step", "confidence")])
+#> # A tibble: 6 × 5
+#>   sentence_id section      move                    step               confidence
+#>         <dbl> <chr>        <chr>                   <chr>                   <dbl>
+#> 1           1 Introduction Unclassified            Unclassified             0   
+#> 2           2 Introduction Unclassified            Unclassified             0   
+#> 3           3 Introduction Unclassified            Unclassified             0   
+#> 4           4 Introduction M3: Occupying the niche Announcing purpose       0.45
+#> 5           5 Introduction Unclassified            Unclassified             0   
+#> 6           6 Introduction Unclassified            Unclassified             0
+```
+
+``` r
+# Aggregated move blocks (consecutive sentences with the same move)
+head(moves$move_blocks[, c("block_id", "section", "move", "n_sentences", "avg_confidence")])
+#> # A tibble: 6 × 5
+#>   block_id section      move                         n_sentences avg_confidence
+#>      <dbl> <chr>        <chr>                              <dbl>          <dbl>
+#> 1        1 Introduction Unclassified                           3           0   
+#> 2        2 Introduction M3: Occupying the niche                1           0.45
+#> 3        3 Introduction Unclassified                           3           0   
+#> 4        4 Introduction M2: Establishing a niche               1           0.35
+#> 5        5 Introduction M1: Establishing a territory           1           0.65
+#> 6        6 Introduction Unclassified                           6           0
+```
+
+``` r
+# Move distribution across sections
+moves$summary$move_distribution
+#> # A tibble: 20 × 4
+#>    section                move                             n   pct
+#>    <chr>                  <chr>                        <int> <dbl>
+#>  1 Analysis               M1: Establishing a territory     3  42.9
+#>  2 Analysis               M2: Establishing a niche         1  14.3
+#>  3 Analysis               M3: Occupying the niche          3  42.9
+#>  4 Comparison study       M3: Occupying the niche          1 100  
+#>  5 Conclusion             M2: Evaluating the study         2  66.7
+#>  6 Conclusion             M3: Looking forward              1  33.3
+#>  7 Introduction           M1: Establishing a territory     2  28.6
+#>  8 Introduction           M2: Establishing a niche         2  28.6
+#>  9 Introduction           M3: Occupying the niche          3  42.9
+#> 10 Local explanation      M1: Establishing a territory     6  85.7
+#> 11 Local explanation      M2: Establishing a niche         1  14.3
+#> 12 Post-Hoc approaches    M3: Occupying the niche          1 100  
+#> 13 Related work           M1: Establishing context         1  50  
+#> 14 Related work           M2: Reviewing prior work         1  50  
+#> 15 Rule extraction        M1: Establishing a territory     1  33.3
+#> 16 Rule extraction        M2: Establishing a niche         2  66.7
+#> 17 Size reduction         M1: Establishing a territory     2  40  
+#> 18 Size reduction         M2: Establishing a niche         2  40  
+#> 19 Size reduction         M3: Occupying the niche          1  20  
+#> 20 Visualization toolkits M1: Establishing a territory     3 100
+```
+
+### Hybrid classification (rule-based + Gemini LLM)
+
+For higher accuracy, the function can combine rule-based detection with
+LLM classification via Google Gemini API. This requires a Gemini API key
+from [Google AI Studio](https://aistudio.google.com/apikey).
+
+``` r
+# Set your Gemini API key
+Sys.setenv(GEMINI_API_KEY = "your-api-key-here")
+
+# Hybrid classification with progress bar
+moves_hybrid <- classify_rhetorical_moves(doc, use_llm = TRUE, model = "2.5-flash")
+
+# View the rhetorical flow of the paper
+moves_hybrid$summary$flow_pattern
+```
+
+### Integration with analyze_scientific_content()
+
+Rhetorical move analysis can be activated as part of the full content
+analysis pipeline:
+
+``` r
+analysis <- analyze_scientific_content(
+  text = doc,
+  doi = "10.1016/j.mlwa.2021.100094",
+  citation_type = "author_year",
+  rhetorical_moves = TRUE  # Activate rhetorical analysis
+)
+
+# Access results
+analysis$rhetorical_moves$sentences
+analysis$rhetorical_moves$move_blocks
+analysis$rhetorical_moves$summary
+```
 
 ## Text Analysis
 
@@ -521,25 +652,25 @@ word_dist <- calculate_word_distribution(doc, method_terms)
 
 ### Create interactive visualization
 
-<img src="man/figures/README-word-distribution.png" width="100%" />
+<img src="man/figures/README-word-distribution.png" alt="" width="100%" />
 
 ### Examine most frequent words
 
 ``` r
 head(analysis$word_frequencies, 10)
 #> # A tibble: 10 × 4
-#>    word         n frequency  rank
-#>    <chr>    <int>     <dbl> <int>
-#>  1 model       45   0.0130      1
-#>  2 forest      42   0.0122      2
-#>  3 accuracy    40   0.0116      3
-#>  4 trees       38   0.0110      4
-#>  5 random      34   0.00985     5
-#>  6 learning    27   0.00782     6
-#>  7 set         27   0.00782     7
-#>  8 variable    26   0.00753     8
-#>  9 data        25   0.00724     9
-#> 10 rule        25   0.00724    10
+#>    word            n frequency  rank
+#>    <chr>       <int>     <dbl> <int>
+#>  1 model          41   0.0127      1
+#>  2 accuracy       40   0.0124      2
+#>  3 forest         39   0.0121      3
+#>  4 trees          37   0.0115      4
+#>  5 random         30   0.00929     5
+#>  6 set            27   0.00836     6
+#>  7 variable       26   0.00805     7
+#>  8 data           24   0.00743     8
+#>  9 predictions    23   0.00712     9
+#> 10 variables      23   0.00712    10
 ```
 
 ### Citation co-occurrence data
@@ -547,14 +678,14 @@ head(analysis$word_frequencies, 10)
 ``` r
 head(analysis$network_data)
 #> # A tibble: 6 × 5
-#>   citation1                                       citation2 distance type1 type2
-#>   <chr>                                           <chr>        <int> <chr> <chr>
-#> 1 (Mitchell, 1997)                                https://…      734 auth… doi_…
-#> 2 (Breiman, 2001)                                 (see Bre…      318 auth… see_…
-#> 3 (Breiman, 2001)                                 (Hastie,…      734 auth… auth…
-#> 4 (see Breiman, 1996)                             (Hastie,…      398 see_… auth…
-#> 5 (see Breiman, 1996)                             (Hastie …      685 see_… auth…
-#> 6 (Hastie, supervised learning (Breiman, Friedma… (Hastie …      210 auth… auth…
+#>   citation1                                  citation2      distance type1 type2
+#>   <chr>                                      <chr>             <int> <chr> <chr>
+#> 1 (Mitchell, 1997)                           (Breiman, Fri…      701 auth… auth…
+#> 2 (Breiman, Friedman, Olshen, & Stone, 1984) (Breiman, 200…      715 auth… auth…
+#> 3 (Breiman, Friedman, Olshen, & Stone, 1984) (see Breiman,…      986 auth… see_…
+#> 4 (Breiman, 2001)                            (see Breiman,…      257 auth… see_…
+#> 5 (Breiman, 2001)                            (Hastie, Tibs…      617 auth… auth…
+#> 6 (Breiman, 2001)                            (Hastie et al…      829 auth… auth…
 ```
 
 ## Working with References
@@ -605,17 +736,17 @@ head(analysis$citation_references_mapping[, c("citation_text_clean", "ref_author
 #>   citation_text_clean                      ref_authors ref_year match_confidence
 #>   <chr>                                    <chr>       <chr>    <chr>           
 #> 1 (Mitchell, 1997)                         Mitchell    1997     high            
-#> 2 https://doi.org/10.1016/j.mlwa.2021.100… <NA>        <NA>     no_match_year   
+#> 2 (Breiman, Friedman, Olshen, & Stone, 19… Breiman     1984     high            
 #> 3 (Breiman, 2001)                          Breiman, L. 2001     high            
 #> 4 (see Breiman, 1996)                      Breiman, L. 1996     high            
-#> 5 (Hastie, supervised learning (Breiman, … Hastie      2009     high            
+#> 5 (Hastie, Tibshirani, & Friedman, 2009)   Hastie      2009     high            
 #> 6 (Hastie et al., 2009)                    Hastie      2009     high
 
 # Match quality distribution
 table(analysis$citation_references_mapping$match_confidence)
 #> 
-#>            high no_match_author   no_match_year 
-#>              42               6               1
+#>            high no_match_author 
+#>              43               6
 ```
 
 ### Finding citations to specific authors
@@ -643,31 +774,30 @@ if (!is.null(analysis$references_oa)) {
   summary(analysis$references_oa$cited_by_count)
 }
 #>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#>     100     205    1056   12429    5399  119748
+#>     100     205    1062   12536    5452  120863
 ```
 
 ### Citations by section
 
 ``` r
 analysis$citation_metrics$section_distribution
-#> # A tibble: 15 × 3
+#> # A tibble: 14 × 3
 #>    section                             n percentage
 #>    <fct>                           <int>      <dbl>
-#>  1 Preface                             0       0   
-#>  2 Introduction                        6      12.2 
-#>  3 Related work                        9      18.4 
-#>  4 Internal processing approaches      0       0   
-#>  5 Random forest extra information     6      12.2 
-#>  6 Visualization toolkits              4       8.16
-#>  7 Post-Hoc approaches                 0       0   
-#>  8 Size reduction                      6      12.2 
-#>  9 Rule extraction                     3       6.12
-#> 10 Local explanation                   5      10.2 
-#> 11 Comparison study                    2       4.08
-#> 12 Experimental design                 4       8.16
-#> 13 Analysis                            4       8.16
-#> 14 Conclusion                          0       0   
-#> 15 Acknowledgment                      0       0
+#>  1 Introduction                        6      12.2 
+#>  2 Related work                        9      18.4 
+#>  3 Internal processing approaches      0       0   
+#>  4 Random forest extra information     6      12.2 
+#>  5 Visualization toolkits              4       8.16
+#>  6 Post-Hoc approaches                 0       0   
+#>  7 Size reduction                      6      12.2 
+#>  8 Rule extraction                     3       6.12
+#>  9 Local explanation                   5      10.2 
+#> 10 Comparison study                    2       4.08
+#> 11 Experimental design                 4       8.16
+#> 12 Analysis                            4       8.16
+#> 13 Conclusion                          0       0   
+#> 14 Acknowledgment                      0       0
 ```
 
 ## Advanced: Word Distribution Analysis
@@ -684,7 +814,7 @@ dist %>%
 #> # A tibble: 1 × 4
 #>   segment_name word   count percentage
 #>   <chr>        <chr>  <int>      <dbl>
-#> 1 Conclusion   health     1      0.331
+#> 1 Conclusion   health     1      0.330
 
 # Visualize trends
 #plot_word_distribution(dist, plot_type = "area", smooth = FALSE)
@@ -706,6 +836,11 @@ dist %>%
 - `match_citations_to_references()`: Match citations to references with
   confidence scoring
 - `get_crossref_references()`: Retrieve references from CrossRef API
+
+### Rhetorical Move Analysis
+
+- `classify_rhetorical_moves()`: Classify sentences by rhetorical
+  function (Swales’ CARS + extensions)
 
 ### Network Analysis
 
@@ -805,6 +940,25 @@ startup:
 ``` r
 # Add to ~/.Rprofile
 openalexR::oa_apikey("your-api-key-here")
+```
+
+### Google Gemini API (for AI-enhanced features)
+
+Both AI-enhanced PDF import and rhetorical move analysis use Google’s
+Gemini API:
+
+1.  Get your free API key at: <https://aistudio.google.com/apikey>
+2.  Set it in your R session:
+
+``` r
+Sys.setenv(GEMINI_API_KEY = "your-api-key-here")
+```
+
+You can also add this to your `.Renviron` file for persistence:
+
+``` r
+# Add to ~/.Renviron
+GEMINI_API_KEY=your-api-key-here
 ```
 
 ## Dependencies

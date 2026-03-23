@@ -48,19 +48,21 @@ The package goes beyond simple PDF parsing by creating a multi-layered analytica
 
 6.  **Network Visualization**: Creates interactive networks showing citation co-occurrence patterns and conceptual relationships within the document
 
+7.  **Rhetorical Move Analysis**: Automatically classifies sentences according to their rhetorical function (Swales' CARS model and extensions), combining rule-based cue phrase detection with LLM classification via Google Gemini API
+
 ### The Complete Workflow
 
-```         
+```
 PDF Document → Text Extraction → Citation Detection → Reference Parsing
 ↓
 CrossRef/OpenAlex APIs
 ↓
 Citation-Reference Matching → Enriched Dataset
 ↓
-Network Analysis + Text Analytics + Bibliometric Indicators
+Network Analysis + Text Analytics + Bibliometric Indicators + Rhetorical Move Analysis
 ```
 
-The result is a rich, structured dataset that transforms a static PDF into an analyzable knowledge object, ready for: - **Content analysis**: Understanding what concepts and methods are discussed - **Citation analysis**: Examining how knowledge is constructed and referenced - **Temporal analysis**: Tracking the evolution of ideas through citation patterns - **Network analysis**: Visualizing intellectual connections - **Readability assessment**: Evaluating text complexity and accessibility
+The result is a rich, structured dataset that transforms a static PDF into an analyzable knowledge object, ready for: - **Content analysis**: Understanding what concepts and methods are discussed - **Citation analysis**: Examining how knowledge is constructed and referenced - **Temporal analysis**: Tracking the evolution of ideas through citation patterns - **Network analysis**: Visualizing intellectual connections - **Readability assessment**: Evaluating text complexity and accessibility - **Discourse analysis**: Mapping the rhetorical structure of scientific argumentation
 
 ## Key Features
 
@@ -117,6 +119,20 @@ The result is a rich, structured dataset that transforms a static PDF into an an
 -   Readability indices (Flesch, Gunning Fog, SMOG, Coleman-Liau)
 -   Word distribution tracking across document sections
 -   Methodological term tracking
+
+### Rhetorical Move Analysis
+
+-   Automatic classification of rhetorical moves at the sentence level
+-   Based on Swales' CARS (Create a Research Space) model with extensions for Literature Review and Discussion/Conclusion sections
+-   Hybrid approach: rule-based cue phrase detection + LLM classification (Google Gemini API)
+-   Taxonomy coverage:
+    -   **Introduction**: Establishing a territory, Establishing a niche, Occupying the niche
+    -   **Literature Review / Background**: Establishing context, Reviewing prior work, Evaluating prior work
+    -   **Discussion / Conclusion**: Consolidating results, Evaluating the study, Looking forward
+-   Sentence-level output with move, step, confidence score, and classification method
+-   Automatic aggregation of consecutive sentences into rhetorical blocks
+-   Move flow visualization showing the argumentative structure of the paper
+-   Results/Findings sections are automatically excluded (not part of the rhetorical model)
 
 ### Bibliometric Indicators
 
@@ -348,6 +364,63 @@ knitr::include_graphics("man/figures/README-refs-per-section.png")
 
 The TF-IDF bar chart uses a 2-column grid layout with color-coded section titles for a compact, readable overview. All plots display sections in the order they appear in the paper, use consistent styling, and include interactive hover information. Colors match the section colors used in the citation network.
 
+## Rhetorical Move Analysis
+
+Automatically classify the rhetorical function of each sentence in a scientific paper, based on Swales' CARS model and extensions for Literature Review and Discussion sections.
+
+### Rule-based classification (no API key needed)
+
+```{r}
+# Classify rhetorical moves using cue phrase dictionaries
+moves <- classify_rhetorical_moves(doc, use_llm = FALSE)
+
+# Sentence-level classification
+head(moves$sentences[, c("sentence_id", "section", "move", "step", "confidence")])
+```
+
+```{r}
+# Aggregated move blocks (consecutive sentences with the same move)
+head(moves$move_blocks[, c("block_id", "section", "move", "n_sentences", "avg_confidence")])
+```
+
+```{r}
+# Move distribution across sections
+moves$summary$move_distribution
+```
+
+### Hybrid classification (rule-based + Gemini LLM)
+
+For higher accuracy, the function can combine rule-based detection with LLM classification via Google Gemini API. This requires a Gemini API key from [Google AI Studio](https://aistudio.google.com/apikey).
+
+```{r eval=FALSE}
+# Set your Gemini API key
+Sys.setenv(GEMINI_API_KEY = "your-api-key-here")
+
+# Hybrid classification with progress bar
+moves_hybrid <- classify_rhetorical_moves(doc, use_llm = TRUE, model = "2.5-flash")
+
+# View the rhetorical flow of the paper
+moves_hybrid$summary$flow_pattern
+```
+
+### Integration with analyze_scientific_content()
+
+Rhetorical move analysis can be activated as part of the full content analysis pipeline:
+
+```{r eval=FALSE}
+analysis <- analyze_scientific_content(
+  text = doc,
+  doi = "10.1016/j.mlwa.2021.100094",
+  citation_type = "author_year",
+  rhetorical_moves = TRUE  # Activate rhetorical analysis
+)
+
+# Access results
+analysis$rhetorical_moves$sentences
+analysis$rhetorical_moves$move_blocks
+analysis$rhetorical_moves$summary
+```
+
 ## Text Analysis
 
 ### Track methodological terms across sections
@@ -475,6 +548,10 @@ dist %>%
 -   `match_citations_to_references()`: Match citations to references with confidence scoring
 -   `get_crossref_references()`: Retrieve references from CrossRef API
 
+### Rhetorical Move Analysis
+
+-   `classify_rhetorical_moves()`: Classify sentences by rhetorical function (Swales' CARS + extensions)
+
 ### Network Analysis
 
 -   `create_citation_network()`: Create interactive citation co-occurrence network
@@ -550,6 +627,24 @@ You can also add this to your `.Rprofile` so it's automatically set at startup:
 ``` r
 # Add to ~/.Rprofile
 openalexR::oa_apikey("your-api-key-here")
+```
+
+### Google Gemini API (for AI-enhanced features)
+
+Both AI-enhanced PDF import and rhetorical move analysis use Google's Gemini API:
+
+1. Get your free API key at: <https://aistudio.google.com/apikey>
+2. Set it in your R session:
+
+``` r
+Sys.setenv(GEMINI_API_KEY = "your-api-key-here")
+```
+
+You can also add this to your `.Renviron` file for persistence:
+
+``` r
+# Add to ~/.Renviron
+GEMINI_API_KEY=your-api-key-here
 ```
 
 ## Dependencies
