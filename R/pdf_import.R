@@ -392,13 +392,35 @@ strip_first_page_header <- function(page_data) {
 
   page_data_sorted <- page_data[order(page_data$y, page_data$x), ]
 
+  # First check if this page has journal metadata markers
+  # Only strip if we detect a real academic paper first page
+  all_text <- paste(page_data_sorted$text, collapse = " ")
+  has_metadata <- grepl(
+    paste0(
+      "\\bARTICLE\\s+INFO\\b|",
+      "\\bABSTRACT\\b.*\\bKeywords?\\b|",
+      "\\bKeywords?\\b.*\\bABSTRACT\\b|",
+      "\\bScienceDirect\\b|",
+      "\\bElsevier\\b|",
+      "\\bSpringer\\b|",
+      "\\bjournal\\s+homepage\\b|",
+      "\\bdoi\\.org\\b|",
+      "\\bReceived\\s+\\d+|",
+      "\\bCorresponding\\s+author\\b"
+    ),
+    all_text,
+    perl = TRUE,
+    ignore.case = TRUE
+  )
+
+  if (!has_metadata) return(page_data)
+
   # Look for body-start markers
   body_markers <- c(
     "^1\\.\\s+Introduction",
     "^1\\.\\s+INTRODUCTION",
     "^Introduction$",
-    "^INTRODUCTION$",
-    "^1\\.$"
+    "^INTRODUCTION$"
   )
 
   # Build line texts with y coordinates
