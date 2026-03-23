@@ -334,6 +334,89 @@ map_citations_to_segments <- function(
   return(citations_df)
 }
 
+
+#' Enrich CrossRef references with PDF-parsed data
+#'
+#' When CrossRef returns incomplete reference entries (missing title, authors,
+#' or full text), this function matches them against references parsed from the
+#' PDF and fills in missing fields.
+#'
+#' @param crossref_refs Tibble of CrossRef references (from get_crossref_references)
+#' @param pdf_refs Tibble of PDF-parsed references (from parse_references_section)
+#'
+#' @return Enriched crossref_refs tibble
+#'
+#' @keywords internal
+enrich_crossref_with_pdf <- function(crossref_refs, pdf_refs) {
+  if (is.null(pdf_refs) || nrow(pdf_refs) == 0) return(crossref_refs)
+  if (is.null(crossref_refs) || nrow(crossref_refs) == 0) return(crossref_refs)
+
+  n_enriched <- 0L
+
+  for (i in seq_len(nrow(crossref_refs))) {
+    cr_year <- crossref_refs$ref_year[i]
+    cr_auth <- crossref_refs$ref_first_author_normalized[i]
+    cr_full <- crossref_refs$ref_full_text[i]
+
+    # Skip if CrossRef already has good data
+    has_good_full_text <- !is.na(cr_full) && nchar(cr_full) > 60
+    if (has_good_full_text) next
+
+    if (is.na(cr_year) || is.na(cr_auth)) next
+
+    # Find matching PDF ref by year + first author
+    cr_auth_clean <- tolower(trimws(cr_auth))
+    cr_year_bare <- gsub("[a-z]$", "", cr_year)
+    pdf_years_bare <- gsub("[a-z]$", "", pdf_refs$ref_year)
+
+    year_match <- !is.na(pdf_refs$ref_year) & pdf_years_bare == cr_year_bare
+    auth_match <- !is.na(pdf_refs$ref_first_author_normalized) &
+      vapply(pdf_refs$ref_first_author_normalized, function(pa) {
+        pa == cr_auth_clean ||
+          grepl(cr_auth_clean, pa, fixed = TRUE) ||
+          grepl(pa, cr_auth_clean, fixed = TRUE)
+      }, logical(1))
+
+    matches <- which(year_match & auth_match)
+
+    if (length(matches) == 0) next
+
+    best <- matches[1]
+    pdf_full <- pdf_refs$ref_full_text[best]
+
+    # Enrich: replace ref_full_text if PDF version is more complete
+    if (!is.na(pdf_full) && nchar(pdf_full) > nchar(ifelse(is.na(cr_full), "", cr_full))) {
+      crossref_refs$ref_full_text[i] <- pdf_full
+      n_enriched <- n_enriched + 1L
+    }
+
+    # Enrich: add second author if CrossRef doesn't have it
+    if ("ref_second_author" %in% names(crossref_refs) &&
+        "ref_second_author" %in% names(pdf_refs)) {
+      cr_auth2 <- crossref_refs$ref_second_author[i]
+      if ((is.na(cr_auth2) || cr_auth2 == "") && !is.na(pdf_refs$ref_second_author[best])) {
+        crossref_refs$ref_second_author[i] <- pdf_refs$ref_second_author[best]
+        if ("ref_second_author_normalized" %in% names(crossref_refs)) {
+          crossref_refs$ref_second_author_normalized[i] <- pdf_refs$ref_second_author_normalized[best]
+        }
+      }
+    }
+
+    # Enrich: fix n_authors if available from PDF
+    if (!is.na(pdf_refs$n_authors[best]) && pdf_refs$n_authors[best] > 0 &&
+        (is.na(crossref_refs$n_authors[i]) || crossref_refs$n_authors[i] <= 1)) {
+      crossref_refs$n_authors[i] <- pdf_refs$n_authors[best]
+    }
+  }
+
+  if (n_enriched > 0) {
+    message(sprintf("Enriched %d CrossRef references with PDF-parsed data", n_enriched))
+  }
+
+  crossref_refs
+}
+
+
 #' Enhanced scientific content analysis with citation extraction
 #'
 #' @description
@@ -422,90 +505,6 @@ map_citations_to_segments <- function(
 #' }
 #'
 #' @export
-#' Enrich CrossRef references with PDF-parsed data
-#'
-#' When CrossRef returns incomplete reference entries (missing title, authors,
-#' or full text), this function matches them against references parsed from the
-#' PDF and fills in missing fields.
-#'
-#' @param crossref_refs Tibble of CrossRef references (from get_crossref_references)
-#' @param pdf_refs Tibble of PDF-parsed references (from parse_references_section)
-#'
-#' @return Enriched crossref_refs tibble
-#'
-#' @keywords internal
-enrich_crossref_with_pdf <- function(crossref_refs, pdf_refs) {
-  if (is.null(pdf_refs) || nrow(pdf_refs) == 0) return(crossref_refs)
-  if (is.null(crossref_refs) || nrow(crossref_refs) == 0) return(crossref_refs)
-
-  n_enriched <- 0L
-
-  for (i in seq_len(nrow(crossref_refs))) {
-    cr_year <- crossref_refs$ref_year[i]
-    cr_auth <- crossref_refs$ref_first_author_normalized[i]
-    cr_full <- crossref_refs$ref_full_text[i]
-
-    # Skip if CrossRef already has good data
-    has_good_full_text <- !is.na(cr_full) && nchar(cr_full) > 60
-    if (has_good_full_text) next
-
-    if (is.na(cr_year) || is.na(cr_auth)) next
-
-    # Find matching PDF ref by year + first author
-    cr_auth_clean <- tolower(trimws(cr_auth))
-    cr_year_bare <- gsub("[a-z]$", "", cr_year)
-    pdf_years_bare <- gsub("[a-z]$", "", pdf_refs$ref_year)
-
-    year_match <- !is.na(pdf_refs$ref_year) & pdf_years_bare == cr_year_bare
-    auth_match <- !is.na(pdf_refs$ref_first_author_normalized) &
-      vapply(pdf_refs$ref_first_author_normalized, function(pa) {
-        pa == cr_auth_clean ||
-          grepl(cr_auth_clean, pa, fixed = TRUE) ||
-          grepl(pa, cr_auth_clean, fixed = TRUE)
-      }, logical(1))
-
-    matches <- which(year_match & auth_match)
-
-    if (length(matches) == 0) next
-
-    # Take the best match (first one, or disambiguate by second author)
-    best <- matches[1]
-
-    pdf_full <- pdf_refs$ref_full_text[best]
-
-    # Enrich: replace ref_full_text if PDF version is more complete
-    if (!is.na(pdf_full) && nchar(pdf_full) > nchar(ifelse(is.na(cr_full), "", cr_full))) {
-      crossref_refs$ref_full_text[i] <- pdf_full
-      n_enriched <- n_enriched + 1L
-    }
-
-    # Enrich: add second author if CrossRef doesn't have it
-    if ("ref_second_author" %in% names(crossref_refs) &&
-        "ref_second_author" %in% names(pdf_refs)) {
-      cr_auth2 <- crossref_refs$ref_second_author[i]
-      if ((is.na(cr_auth2) || cr_auth2 == "") && !is.na(pdf_refs$ref_second_author[best])) {
-        crossref_refs$ref_second_author[i] <- pdf_refs$ref_second_author[best]
-        if ("ref_second_author_normalized" %in% names(crossref_refs)) {
-          crossref_refs$ref_second_author_normalized[i] <- pdf_refs$ref_second_author_normalized[best]
-        }
-      }
-    }
-
-    # Enrich: fix n_authors if available from PDF
-    if (!is.na(pdf_refs$n_authors[best]) && pdf_refs$n_authors[best] > 0 &&
-        (is.na(crossref_refs$n_authors[i]) || crossref_refs$n_authors[i] <= 1)) {
-      crossref_refs$n_authors[i] <- pdf_refs$n_authors[best]
-    }
-  }
-
-  if (n_enriched > 0) {
-    message(sprintf("Enriched %d CrossRef references with PDF-parsed data", n_enriched))
-  }
-
-  crossref_refs
-}
-
-
 #' @importFrom tibble tibble
 #' @importFrom dplyr mutate select filter bind_rows arrange desc left_join count rowwise ungroup slice_head rename row_number
 #' @importFrom purrr map_lgl
@@ -694,14 +693,51 @@ analyze_scientific_content <- function(
       # Post-match false-positive filter for author-year and narrative patterns
       if (grepl("narrative|author_year", pattern_name)) {
         non_author_words <- c(
-          "January", "February", "March", "April", "May", "June",
-          "July", "August", "September", "October", "November", "December",
-          "Table", "Figure", "Chapter", "Section", "Appendix", "Volume",
-          "Issue", "Part", "Equation", "Model", "Phase", "Step",
-          "Experiment", "Hypothesis", "Criterion", "Category", "Factor",
-          "Panel", "Supplement", "Group", "Type", "Level", "Stage",
-          "Version", "Component", "Dimension", "Cluster", "Wave",
-          "Trial", "Sample", "Grade", "Item", "Number"
+          "January",
+          "February",
+          "March",
+          "April",
+          "May",
+          "June",
+          "July",
+          "August",
+          "September",
+          "October",
+          "November",
+          "December",
+          "Table",
+          "Figure",
+          "Chapter",
+          "Section",
+          "Appendix",
+          "Volume",
+          "Issue",
+          "Part",
+          "Equation",
+          "Model",
+          "Phase",
+          "Step",
+          "Experiment",
+          "Hypothesis",
+          "Criterion",
+          "Category",
+          "Factor",
+          "Panel",
+          "Supplement",
+          "Group",
+          "Type",
+          "Level",
+          "Stage",
+          "Version",
+          "Component",
+          "Dimension",
+          "Cluster",
+          "Wave",
+          "Trial",
+          "Sample",
+          "Grade",
+          "Item",
+          "Number"
         )
         leading <- stringr::str_extract(
           citations_temp$citation_text,
@@ -1214,27 +1250,31 @@ analyze_scientific_content <- function(
       !is.null(references_section) &&
       nchar(trimws(references_section)) > 50
   ) {
-    tryCatch({
-      pdf_refs <- parse_references_section(references_section)
-      if (nrow(pdf_refs) > 0) {
-        message(sprintf(
-          "Enriching CrossRef references with %d PDF-parsed entries...",
-          nrow(pdf_refs)
-        ))
-        # Ensure CrossRef refs have second_author columns for enrichment
-        if (!"ref_second_author" %in% names(parsed_references)) {
-          parsed_references$ref_second_author <- NA_character_
+    tryCatch(
+      {
+        pdf_refs <- parse_references_section(references_section)
+        if (nrow(pdf_refs) > 0) {
+          message(sprintf(
+            "Enriching CrossRef references with %d PDF-parsed entries...",
+            nrow(pdf_refs)
+          ))
+          # Ensure CrossRef refs have second_author columns for enrichment
+          if (!"ref_second_author" %in% names(parsed_references)) {
+            parsed_references$ref_second_author <- NA_character_
+          }
+          if (!"ref_second_author_normalized" %in% names(parsed_references)) {
+            parsed_references$ref_second_author_normalized <- NA_character_
+          }
+          parsed_references <- enrich_crossref_with_pdf(
+            parsed_references,
+            pdf_refs
+          )
         }
-        if (!"ref_second_author_normalized" %in% names(parsed_references)) {
-          parsed_references$ref_second_author_normalized <- NA_character_
-        }
-        parsed_references <- enrich_crossref_with_pdf(
-          parsed_references, pdf_refs
-        )
+      },
+      error = function(e) {
+        message(paste("PDF enrichment failed:", e$message))
       }
-    }, error = function(e) {
-      message(paste("PDF enrichment failed:", e$message))
-    })
+    )
   }
 
   if (
