@@ -294,6 +294,142 @@ convert_superscript_citations <- function(text) {
 }
 
 
+#' Remove first-page footer metadata from PDF word data
+#'
+#' Detects and removes editorial footer content typically found on the first
+#' page of scientific papers (corresponding author info, DOI, received dates,
+#' copyright notices). These footers are identified by characteristic patterns
+#' starting with markers like "∗", "Corresponding author", DOI URLs, or
+#' copyright symbols.
+#'
+#' @param page_data Data frame from pdftools::pdf_data() for page 1
+#'
+#' @return Data frame with footer rows removed
+#'
+#' @keywords internal
+#' @noRd
+strip_first_page_footer <- function(page_data) {
+  if (nrow(page_data) == 0) return(page_data)
+
+  # Sort by y to find footer zone
+  max_y <- max(page_data$y)
+  page_height <- max_y + max(page_data$height, na.rm = TRUE)
+
+  # Look for footer markers in the bottom 25% of the page
+  bottom_zone_y <- max_y * 0.75
+  bottom_words <- page_data[page_data$y >= bottom_zone_y, ]
+
+  if (nrow(bottom_words) == 0) return(page_data)
+
+  # Group bottom words by line
+  y_tol <- compute_y_tolerance(page_data$y)
+  bottom_words$line_y <- round(bottom_words$y / y_tol) * y_tol
+  lines_by_y <- split(bottom_words, bottom_words$line_y)
+
+  # Build line texts
+  footer_start_y <- NA
+  for (line_y in sort(as.numeric(names(lines_by_y)))) {
+    line <- lines_by_y[[as.character(line_y)]]
+    line <- line[order(line$x), ]
+    line_text <- paste(line$text, collapse = " ")
+
+    # Detect footer markers
+    is_footer_line <- grepl(
+      paste0(
+        "^\\s*\\*\\s*$|",                                      # lone asterisk
+        "\\bCorresponding\\s+author\\b|",                       # corresponding author
+        "\\bE-mail\\s+address|",                                # email addresses
+        "\\bhttps?://doi\\.org/|",                              # DOI URL
+        "\\bReceived\\s+\\d+\\s+\\w+\\s+\\d{4}|",             # received date
+        "\\bAvailable\\s+online\\b|",                           # available online
+        "\\b\\d{4}-\\d{4}/\\s*\\xa9|",                         # ISSN/copyright
+        "\\b\\d{4}-\\d{4}/\\s*©|",                             # ISSN/copyright alt
+        "\\bPublished\\s+by\\s+Elsevier|",                     # publisher
+        "\\bPublished\\s+by\\s+Springer|",                     # publisher
+        "\\bCreative\\s+Commons|",                              # CC license
+        "\\bunder\\s+the\\s+CC\\s+BY|",                        # CC BY license
+        "\\bcreativecommons\\.org|",                            # CC URL
+        "\\b©\\s*\\d{4}\\b"                                    # copyright year
+      ),
+      line_text,
+      perl = TRUE,
+      ignore.case = TRUE
+    )
+
+    if (is_footer_line && is.na(footer_start_y)) {
+      footer_start_y <- line_y
+      break
+    }
+  }
+
+  if (is.na(footer_start_y)) return(page_data)
+
+  # Remove all words at or below the footer start
+  # Use a small tolerance to capture the footer marker line itself
+  page_data <- page_data[page_data$y < (footer_start_y - y_tol / 2), ]
+
+  page_data
+}
+
+
+#' Compute a global gutter threshold from multiple pages
+#'
+#' Analyzes all pages to find a stable column separator. Uses the median
+#' gutter position across pages that show a clear 2-column layout, avoiding
+#' pages with mixed layouts (e.g., title pages with sidebar keywords).
+#'
+#' @param data_list List of data frames from pdftools::pdf_data()
+#' @param n_columns Integer. Number of columns to detect.
+#'
+#' @return Numeric vector of thresholds, or NULL if detection fails
+#'
+#' @keywords internal
+#' @noRd
+compute_global_gutter <- function(data_list, n_columns = 2) {
+  if (length(data_list) < 1) return(NULL)
+
+  # Collect gutter estimates from each page
+  page_gutters <- list()
+
+  for (page_num in seq_along(data_list)) {
+    page_data <- data_list[[page_num]]
+    if (nrow(page_data) < 30) next
+
+    x_positions <- page_data$x
+
+    tryCatch({
+      clusters <- kmeans(x_positions, centers = n_columns, nstart = 20)
+      cluster_centers <- sort(clusters$centers[, 1])
+
+      # Compute per-page thresholds
+      thresholds <- numeric(n_columns - 1)
+      for (i in 1:(n_columns - 1)) {
+        thresholds[i] <- find_gutter_x(
+          x_positions,
+          c(cluster_centers[i], cluster_centers[i + 1])
+        )
+      }
+
+      # Quality check: both clusters should have similar sizes (within 3:1 ratio)
+      cluster_sizes <- table(clusters$cluster)
+      size_ratio <- max(cluster_sizes) / max(min(cluster_sizes), 1)
+
+      if (size_ratio <= 3 && validate_columns(page_data, thresholds[1])) {
+        page_gutters[[length(page_gutters) + 1]] <- thresholds
+      }
+    }, error = function(e) NULL)
+  }
+
+  if (length(page_gutters) == 0) return(NULL)
+
+  # Use the median gutter across valid pages
+  gutter_matrix <- do.call(rbind, page_gutters)
+  global_thresholds <- apply(gutter_matrix, 2, stats::median)
+
+  global_thresholds
+}
+
+
 #' Find the gutter x-position between two column centers
 #'
 #' @param x_positions Numeric vector of x coordinates
@@ -450,6 +586,22 @@ pdf2txt_multicolumn_safe <- function(
       data_list <- pdftools::pdf_data(file)
       all_text <- c()
 
+      # Pre-compute a global gutter from the most reliable pages
+      # (pages with clear 2-column layout) to avoid per-page misdetection
+      global_thresholds <- NULL
+      if (!is.null(n_columns) && n_columns >= 2) {
+        global_thresholds <- compute_global_gutter(data_list, n_columns)
+      }
+
+      # For auto-detection mode, also pre-compute a global threshold
+      auto_global_threshold <- NULL
+      if (is.null(n_columns) && is.null(column_threshold)) {
+        auto_global <- compute_global_gutter(data_list, 2)
+        if (!is.null(auto_global)) {
+          auto_global_threshold <- auto_global[1]
+        }
+      }
+
       for (page_num in seq_along(data_list)) {
         page_data <- data_list[[page_num]]
         if (nrow(page_data) == 0) {
@@ -471,19 +623,24 @@ pdf2txt_multicolumn_safe <- function(
 
             tryCatch(
               {
-                clusters <- kmeans(
-                  x_positions,
-                  centers = n_columns,
-                  nstart = 20
-                )
-                cluster_centers <- sort(clusters$centers[, 1])
-
-                thresholds <- numeric(n_columns - 1)
-                for (i in 1:(n_columns - 1)) {
-                  thresholds[i] <- find_gutter_x(
+                # Use global thresholds if available, otherwise per-page
+                if (!is.null(global_thresholds)) {
+                  thresholds <- global_thresholds
+                } else {
+                  clusters <- kmeans(
                     x_positions,
-                    c(cluster_centers[i], cluster_centers[i + 1])
+                    centers = n_columns,
+                    nstart = 20
                   )
+                  cluster_centers <- sort(clusters$centers[, 1])
+
+                  thresholds <- numeric(n_columns - 1)
+                  for (i in 1:(n_columns - 1)) {
+                    thresholds[i] <- find_gutter_x(
+                      x_positions,
+                      c(cluster_centers[i], cluster_centers[i + 1])
+                    )
+                  }
                 }
 
                 # Validate column split
@@ -575,25 +732,32 @@ pdf2txt_multicolumn_safe <- function(
           # Automatic column detection
           y_tol <- compute_y_tolerance(page_data$y)
           if (is.null(column_threshold)) {
-            x_positions <- page_data$x
-            if (length(unique(x_positions)) > 20) {
-              tryCatch(
-                {
-                  clusters <- kmeans(x_positions, centers = 2, nstart = 10)
-                  cluster_centers <- sort(clusters$centers[, 1])
-                  column_threshold <- find_gutter_x(x_positions, cluster_centers)
-                },
-                error = function(e) {
-                  column_threshold <- (max(page_data$x) + min(page_data$x)) / 2
-                }
-              )
+            # Use global threshold if available, otherwise per-page
+            if (!is.null(auto_global_threshold)) {
+              page_column_threshold <- auto_global_threshold
             } else {
-              column_threshold <- (max(page_data$x) + min(page_data$x)) / 2
+              x_positions <- page_data$x
+              if (length(unique(x_positions)) > 20) {
+                tryCatch(
+                  {
+                    clusters <- kmeans(x_positions, centers = 2, nstart = 10)
+                    cluster_centers <- sort(clusters$centers[, 1])
+                    page_column_threshold <- find_gutter_x(x_positions, cluster_centers)
+                  },
+                  error = function(e) {
+                    page_column_threshold <- (max(page_data$x) + min(page_data$x)) / 2
+                  }
+                )
+              } else {
+                page_column_threshold <- (max(page_data$x) + min(page_data$x)) / 2
+              }
             }
+          } else {
+            page_column_threshold <- column_threshold
           }
 
           # Validate before treating as two-column
-          is_two_col <- validate_columns(page_data, column_threshold)
+          is_two_col <- validate_columns(page_data, page_column_threshold)
 
           if (!is_two_col) {
             # Single column layout
@@ -604,8 +768,8 @@ pdf2txt_multicolumn_safe <- function(
               y_tolerance = y_tol
             )
           } else {
-            left_column <- page_data[page_data$x < column_threshold, ]
-            right_column <- page_data[page_data$x >= column_threshold, ]
+            left_column <- page_data[page_data$x < page_column_threshold, ]
+            right_column <- page_data[page_data$x >= page_column_threshold, ]
 
             # Two-column layout
             left_column <- left_column[order(left_column$y, left_column$x), ]

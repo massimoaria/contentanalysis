@@ -14,7 +14,11 @@ devtools::load_all(".")
 # Opzione A: usa il paper di esempio incluso nel pacchetto
 paper_path <- get_example_paper()
 # pdf2txt_auto con sections=TRUE (default) ritorna già una named list di sezioni
-sections <- pdf2txt_auto(paper_path)
+sections <- pdf2txt_auto(
+  paper_path,
+  sections = TRUE,
+  citation_type = "author_year"
+)
 
 # Opzione B: usa un tuo PDF
 # sections <- pdf2txt_auto("path/to/your/paper.pdf")
@@ -63,10 +67,23 @@ print(moves_rules)
 
 # Esplora i risultati nel dettaglio
 cat("\n--- Sentence-level classification ---\n")
-print(moves_rules$sentences[, c("sentence_id", "section", "move", "step", "confidence")])
+print(moves_rules$sentences[, c(
+  "sentence_id",
+  "section",
+  "move",
+  "step",
+  "confidence"
+)])
 
 cat("\n--- Aggregated move blocks ---\n")
-print(moves_rules$move_blocks[, c("block_id", "section", "move", "step", "n_sentences", "avg_confidence")])
+print(moves_rules$move_blocks[, c(
+  "block_id",
+  "section",
+  "move",
+  "step",
+  "n_sentences",
+  "avg_confidence"
+)])
 
 cat("\n--- Move distribution ---\n")
 print(moves_rules$summary$move_distribution)
@@ -84,7 +101,6 @@ cat("\n========== TEST 2: Hybrid (rules + Gemini LLM) ==========\n\n")
 # Sys.setenv(GEMINI_API_KEY = "your-api-key-here")
 
 if (Sys.getenv("GEMINI_API_KEY") != "") {
-
   moves_hybrid <- classify_rhetorical_moves(
     text = sections_test,
     use_llm = TRUE,
@@ -109,9 +125,11 @@ if (Sys.getenv("GEMINI_API_KEY") != "") {
   comparison$agree <- comparison$move_rules == comparison$move_hybrid
   print(comparison)
 
-  cat("\nAgreement rate: ",
-      round(mean(comparison$agree, na.rm = TRUE) * 100, 1), "%\n")
-
+  cat(
+    "\nAgreement rate: ",
+    round(mean(comparison$agree, na.rm = TRUE) * 100, 1),
+    "%\n"
+  )
 } else {
   cat("Skipped: GEMINI_API_KEY not set.\n")
   cat("Set it with: Sys.setenv(GEMINI_API_KEY = 'your-key')\n")
@@ -124,10 +142,9 @@ if (Sys.getenv("GEMINI_API_KEY") != "") {
 cat("\n========== TEST 3: Full pipeline con PDF ==========\n\n")
 
 if (file.exists(paper_path) && Sys.getenv("GEMINI_API_KEY") != "") {
-
   result <- analyze_scientific_content(
     text = sections,
-    rhetorical_moves = TRUE  # attiva la classificazione dei moves
+    rhetorical_moves = TRUE # attiva la classificazione dei moves
   )
 
   # I moves sono nell'output
@@ -135,7 +152,6 @@ if (file.exists(paper_path) && Sys.getenv("GEMINI_API_KEY") != "") {
     cat("Rhetorical moves detected!\n\n")
     print(result$rhetorical_moves)
   }
-
 } else {
   cat("Skipped: need example PDF + GEMINI_API_KEY.\n")
 

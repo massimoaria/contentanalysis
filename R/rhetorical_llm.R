@@ -163,6 +163,13 @@ apply_llm_based_moves <- function(
       tax_type, nrow(subset_df), n_batches
     ))
 
+    # Progress bar for batch processing
+    pb <- utils::txtProgressBar(
+      min = 0, max = n_batches,
+      style = 3, char = "=",
+      title = paste("Classifying", tax_type)
+    )
+
     for (b in seq_along(batch_indices)) {
       batch_idx <- batch_indices[[b]]
       batch_sentences <- subset_df$text[batch_idx]
@@ -178,7 +185,7 @@ apply_llm_based_moves <- function(
           outputSize = "medium"
         ),
         error = function(e) {
-          message(sprintf("Gemini API error (batch %d): %s", b, e$message))
+          message(sprintf("\nGemini API error (batch %d): %s", b, e$message))
           NULL
         }
       )
@@ -207,14 +214,18 @@ apply_llm_based_moves <- function(
           sentences_df$conf_llm[orig_row] <- parsed$confidence[j]
         }
       } else {
-        message(sprintf("  Batch %d/%d: JSON parsing failed, using rule-based fallback", b, n_batches))
+        message(sprintf("\n  Batch %d/%d: JSON parsing failed, using rule-based fallback", b, n_batches))
       }
+
+      utils::setTxtProgressBar(pb, b)
 
       # Rate limiting between batches
       if (b < length(batch_indices)) {
         Sys.sleep(1)
       }
     }
+
+    close(pb)
   }
 
   sentences_df

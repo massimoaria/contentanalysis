@@ -176,6 +176,16 @@ extract_all_titles <- function(toc_node) {
 #' @importFrom pdftools pdf_toc
 split_into_sections <- function(text, file_path = NULL) {
 
+  # If already a named list (e.g., from pdf2txt_auto with sections=TRUE), return as-is
+  if (is.list(text)) {
+    return(text)
+  }
+
+  # Collapse vector of pages/paragraphs into a single string
+  if (length(text) > 1) {
+    text <- paste(text, collapse = "\n\n")
+  }
+
   # Normalize text before any matching
   text <- normalize_ligatures(text)
   text <- strip_running_headers(text)
