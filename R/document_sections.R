@@ -88,29 +88,40 @@ strip_running_headers <- function(text) {
   for (i in seq_along(positions)) {
     start <- positions[i] + lengths[i]
     end <- min(nchar(text), start + 199L)
-    after_texts[i] <- substr(text, start, end)
+    if (start <= nchar(text)) {
+      after_texts[i] <- substr(text, start, end)
+    } else {
+      after_texts[i] <- ""
+    }
   }
 
   # Group texts by short prefix (40 chars) to find candidate running headers
   short_prefixes <- substr(after_texts, 1L, 40L)
   prefix_groups <- split(seq_along(after_texts), short_prefixes)
-  largest_group <- prefix_groups[[which.max(lengths(prefix_groups))]]
 
-  if (length(largest_group) >= 3L) {
+  # Process ALL groups with >= 3 occurrences (handles alternating headers)
+  total_stripped <- 0L
+  for (group_name in names(prefix_groups)) {
+    group <- prefix_groups[[group_name]]
+    if (length(group) < 3L) next
+
     # Extend prefix as far as all group members agree (find exact header length)
-    group_texts <- after_texts[largest_group]
+    group_texts <- after_texts[group]
     max_len <- min(nchar(group_texts))
-    prefix_len <- 40L
-    for (i in 41L:max_len) {
-      chars <- substr(group_texts, i, i)
-      if (length(unique(chars)) > 1L) break
-      prefix_len <- i
+    prefix_len <- min(40L, max_len)
+    if (max_len > 40L) {
+      for (i in 41L:max_len) {
+        chars <- substr(group_texts, i, i)
+        if (length(unique(chars)) > 1L) break
+        prefix_len <- i
+      }
     }
     header <- substr(group_texts[1L], 1L, prefix_len)
     escaped <- gsub("([.|?*+^$()\\[\\]{}\\\\])", "\\\\\\1", header, perl = TRUE)
     text <- gsub(paste0("[0-9]+\\n\\n", escaped), "\n\n", text, perl = TRUE)
+    total_stripped <- total_stripped + length(group)
     message(sprintf("Stripped running header (%d occurrences, %d chars)",
-                    length(largest_group), prefix_len))
+                    length(group), prefix_len))
   }
 
   text

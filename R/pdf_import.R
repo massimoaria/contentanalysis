@@ -372,6 +372,119 @@ strip_first_page_footer <- function(page_data) {
 }
 
 
+#' Remove first-page header/metadata area from PDF word data
+#'
+#' On scientific paper first pages, the area above the main text body often
+#' contains journal name, article title, authors, affiliations, keywords, and
+#' abstract. When split into columns, this metadata area produces garbled text.
+#' This function detects and removes it by looking for markers like "ABSTRACT",
+#' "ARTICLE INFO", "Introduction", or section "1." that indicate where the
+#' body text begins.
+#'
+#' @param page_data Data frame from pdftools::pdf_data() for page 1
+#'
+#' @return Data frame with header metadata rows removed
+#'
+#' @keywords internal
+#' @noRd
+strip_first_page_header <- function(page_data) {
+  if (nrow(page_data) == 0) return(page_data)
+
+  page_data_sorted <- page_data[order(page_data$y, page_data$x), ]
+
+  # Look for body-start markers
+  body_markers <- c(
+    "^1\\.\\s+Introduction",
+    "^1\\.\\s+INTRODUCTION",
+    "^Introduction$",
+    "^INTRODUCTION$",
+    "^1\\.$"
+  )
+
+  # Build line texts with y coordinates
+  y_tol <- compute_y_tolerance(page_data$y)
+  page_data_sorted$line_y <- round(page_data_sorted$y / y_tol) * y_tol
+  lines_by_y <- split(page_data_sorted, page_data_sorted$line_y)
+
+  body_start_y <- NA
+
+  for (line_y_str in names(lines_by_y)[order(as.numeric(names(lines_by_y)))]) {
+    line <- lines_by_y[[line_y_str]]
+    line <- line[order(line$x), ]
+    line_text <- paste(line$text, collapse = " ")
+
+    for (marker in body_markers) {
+      if (grepl(marker, line_text, perl = TRUE)) {
+        body_start_y <- as.numeric(line_y_str)
+        break
+      }
+    }
+    if (!is.na(body_start_y)) break
+  }
+
+  if (is.na(body_start_y)) return(page_data)
+
+  # Remove everything above the body start marker
+  page_data <- page_data[page_data$y >= (body_start_y - y_tol / 2), ]
+
+  page_data
+}
+
+
+#' Remove running header lines from PDF page data
+#'
+#' Identifies and removes running headers that appear at the top of multiple
+#' pages. Compares the first text line across all pages; if the same text
+#' appears on 3+ pages, it is removed from all pages.
+#'
+#' @param data_list List of data frames from pdftools::pdf_data()
+#'
+#' @return Modified data_list with running header rows removed
+#'
+#' @keywords internal
+#' @noRd
+strip_page_running_headers <- function(data_list) {
+  if (length(data_list) < 3) return(data_list)
+
+  # Extract first-line text from each page
+  first_line_texts <- character(length(data_list))
+  first_line_max_y <- numeric(length(data_list))
+
+  for (i in seq_along(data_list)) {
+    pg <- data_list[[i]]
+    if (nrow(pg) == 0) next
+
+    min_y <- min(pg$y)
+    y_tol <- compute_y_tolerance(pg$y)
+    # Get words on the first line
+    first_line <- pg[pg$y <= min_y + y_tol, ]
+    first_line <- first_line[order(first_line$x), ]
+    first_line_texts[i] <- paste(first_line$text, collapse = " ")
+    first_line_max_y[i] <- min_y + y_tol
+  }
+
+  # Find pages (>= 3) sharing the same first line text (or very similar)
+  # Use first 40 chars as signature to handle minor variations
+  signatures <- substr(first_line_texts, 1, 40)
+  sig_table <- table(signatures)
+  repeated_sigs <- names(sig_table[sig_table >= 3])
+
+  if (length(repeated_sigs) == 0) return(data_list)
+
+  for (sig in repeated_sigs) {
+    pages_with_header <- which(signatures == sig)
+    for (i in pages_with_header) {
+      pg <- data_list[[i]]
+      if (nrow(pg) == 0) next
+      # Remove the first line
+      data_list[[i]] <- pg[pg$y > first_line_max_y[i], ]
+    }
+  }
+
+  data_list
+}
+
+
 #' Compute a global gutter threshold from multiple pages
 #'
 #' Analyzes all pages to find a stable column separator. Uses the median
@@ -584,6 +697,10 @@ pdf2txt_multicolumn_safe <- function(
   tryCatch(
     {
       data_list <- pdftools::pdf_data(file)
+
+      # Remove running headers from page data (before text reconstruction)
+      data_list <- strip_page_running_headers(data_list)
+
       all_text <- c()
 
       # Pre-compute a global gutter from the most reliable pages
@@ -606,6 +723,14 @@ pdf2txt_multicolumn_safe <- function(
         page_data <- data_list[[page_num]]
         if (nrow(page_data) == 0) {
           next
+        }
+
+        # Strip first-page metadata: header (title/abstract/keywords) and
+        # footer (corresponding author, DOI, received dates, copyright)
+        if (page_num == 1) {
+          page_data <- strip_first_page_header(page_data)
+          page_data <- strip_first_page_footer(page_data)
+          if (nrow(page_data) == 0) next
         }
 
         if (!is.null(n_columns)) {
