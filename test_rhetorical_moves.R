@@ -144,7 +144,8 @@ cat("\n========== TEST 3: Full pipeline con PDF ==========\n\n")
 if (file.exists(paper_path) && Sys.getenv("GEMINI_API_KEY") != "") {
   result <- analyze_scientific_content(
     text = sections,
-    rhetorical_moves = TRUE # attiva la classificazione dei moves
+    rhetorical_moves = TRUE,
+    rhetorical_model = "3.0-flash-preview" # attiva la classificazione dei moves
   )
 
   # I moves sono nell'output
