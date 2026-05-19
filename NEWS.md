@@ -1,4 +1,11 @@
-# contentanalysis (development version)
+# contentanalysis 1.1.0
+
+* New `classify_rhetorical_moves()` function: classifies rhetorical moves at the sentence level in scientific text, based on Swales' CARS model and extensions for Literature Review and Discussion/Conclusion sections. Uses a hybrid rule-based approach, optionally enhanced with Google Gemini LLM classification
+* `analyze_scientific_content()` gains `rhetorical_moves` and `rhetorical_model` arguments to optionally include rhetorical move classification in the analysis output
+* Improved PDF import: better handling of multi-column layouts and automatic removal of running headers and first-page headers/footers
+* Improved reference parsing with format-aware detection (parenthetical, bare-year, and numbered styles) and CrossRef enrichment of references extracted from the PDF
+* Fixed R CMD check portability NOTE by replacing non-ASCII characters in `R/pdf_import.R` with Unicode escapes
+* Fixed R CMD check NOTE about non-standard top-level files by adding `test_rhetorical_moves.R`, `tasks`, and `revdep` to `.Rbuildignore`
 
 # contentanalysis 1.0.0
 
