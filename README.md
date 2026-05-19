@@ -258,7 +258,7 @@ analysis <- analyze_scientific_content(
 #> Attempting to retrieve references from CrossRef...
 #> Successfully retrieved 33 references from CrossRef
 #> Fetching Open Access metadata for 14 DOIs from OpenAlex...
-#> Successfully retrieved metadata for 13 references from OpenAlex
+#> Successfully retrieved metadata for 14 references from OpenAlex
 #> Enriching CrossRef references with 32 PDF-parsed entries...
 #> Enriched 10 CrossRef references with PDF-parsed data
 ```
@@ -306,14 +306,14 @@ analysis$summary
 #> [1] 33
 #> 
 #> $citations_matched_to_refs
-#> [1] 43
+#> [1] 41
 #> 
 #> $match_quality
 #> # A tibble: 2 × 3
 #>   match_confidence     n percentage
 #>   <chr>            <int>      <dbl>
-#> 1 high                43       87.8
-#> 2 no_match_author      6       12.2
+#> 1 high                41       83.7
+#> 2 no_match_author      8       16.3
 #> 
 #> $citation_type_used
 #> [1] "author_year"
@@ -485,15 +485,15 @@ cluster_desc$cluster_summary
 #>    section                         n_references top_terms                       
 #>    <chr>                                  <int> <chr>                           
 #>  1 Introduction                               5 learning, bagging, bagging pred…
-#>  2 Related work                               8 interpretable machine, black, b…
+#>  2 Related work                               7 interpretable machine, interpre…
 #>  3 Random forest extra information            5 forests, random forests, annals…
 #>  4 Visualization toolkits                     4 tree, forests, random forests, …
 #>  5 Size reduction                             4 adaptive, adaptive diagnostic, …
 #>  6 Rule extraction                            2 annals applied, applied, applie…
-#>  7 Local explanation                          3 black, black box, box, models, …
+#>  7 Local explanation                          2 box classifiers, classification…
 #>  8 Comparison study                           1 annals applied, applied, applie…
 #>  9 Experimental design                        3 bell, bell laboratories, labora…
-#> 10 Analysis                                   3 domains, domains acm, imbalance…
+#> 10 Analysis                                   3 acm computing, computing survey…
 
 # View detailed TF-IDF scores
 cluster_desc$cluster_descriptions
@@ -746,7 +746,7 @@ head(analysis$citation_references_mapping[, c("citation_text_clean", "ref_author
 table(analysis$citation_references_mapping$match_confidence)
 #> 
 #>            high no_match_author 
-#>              43               6
+#>              41               8
 ```
 
 ### Finding citations to specific authors
@@ -773,8 +773,8 @@ if (!is.null(analysis$references_oa)) {
   # Analyze citation impact
   summary(analysis$references_oa$cited_by_count)
 }
-#>    Min. 1st Qu.  Median    Mean 3rd Qu.    Max. 
-#>     100     205    1062   12536    5452  120863
+#>     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
+#>    101.0    207.2   1153.5  12252.6   5411.2 123905.0
 ```
 
 ### Citations by section

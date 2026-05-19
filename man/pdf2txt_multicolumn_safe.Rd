@@ -26,8 +26,8 @@ section structure. If FALSE, returns continuous text. Default is TRUE.}
 
 \item{citation_type}{Character string. Type of citations in the document:
 \itemize{
-\item "numeric_superscript": Numeric citations in superscript (converted to \link[dplyr:context]{dplyr::n})
-\item "numeric_bracketed": Numeric citations already in brackets \link[dplyr:context]{dplyr::n} (no conversion)
+\item "numeric_superscript": Numeric citations in superscript (converted to \link[dplyr:n]{n})
+\item "numeric_bracketed": Numeric citations already in brackets \link[dplyr:n]{n} (no conversion)
 \item "author_year": Author-year citations like (Smith, 2020) (no conversion)
 \item "none": No citation conversion
 }

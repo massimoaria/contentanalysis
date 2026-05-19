@@ -9,3 +9,7 @@ inst/doc
 /doc/
 /Meta/
 .positai
+/tasks/
+/revdep/
+cran-comments.md
+CRAN-SUBMISSION

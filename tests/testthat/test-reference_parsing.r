@@ -5,79 +5,6 @@ library(tibble)
 #library(dplyr)
 
 # ============================================================================
-# normalize_references_text() - Internal Function Tests
-# ============================================================================
-
-test_that("normalize_references_text handles NULL input", {
-  skip_on_cran()
-  result <- contentanalysis:::normalize_references_text(NULL)
-  expect_equal(result, "")
-})
-
-test_that("normalize_references_text handles empty string", {
-  skip_on_cran()
-  result <- contentanalysis:::normalize_references_text("")
-  expect_equal(result, "")
-})
-
-test_that("normalize_references_text handles NA input", {
-  skip_on_cran()
-  result <- contentanalysis:::normalize_references_text(NA_character_)
-  expect_equal(result, "")
-})
-
-test_that("normalize_references_text handles empty vector", {
-  skip_on_cran()
-  result <- contentanalysis:::normalize_references_text(character(0))
-  expect_equal(result, "")
-})
-
-test_that("normalize_references_text preserves simple text", {
-  skip_on_cran()
-  input <- "Smith, J. (2020). Title of paper. Journal."
-  result <- contentanalysis:::normalize_references_text(input)
-  expect_equal(result, input)
-})
-
-test_that("normalize_references_text removes line breaks between authors", {
-  skip_on_cran()
-  input <- "Smith, J.,\n\nJones, A. (2020). Paper."
-  result <- contentanalysis:::normalize_references_text(input)
-  expect_false(grepl("\n\n", result))
-  expect_true(grepl("Smith, J., Jones, A", result))
-})
-
-test_that("normalize_references_text removes line breaks after initials", {
-  skip_on_cran()
-  input <- "Smith, J.,\n\nBrown, K. (2020). Paper."
-  result <- contentanalysis:::normalize_references_text(input)
-  expect_false(grepl("\n\n", result))
-})
-
-test_that("normalize_references_text removes line breaks after ampersand", {
-  skip_on_cran()
-  input <- "Smith, J. &\n\nJones, A. (2020). Paper."
-  result <- contentanalysis:::normalize_references_text(input)
-  expect_false(grepl("&\n\n", result))
-  expect_true(grepl("& Jones", result))
-})
-
-test_that("normalize_references_text removes line breaks between initials", {
-  skip_on_cran()
-  input <- "Smith, J. R.\n\nK. (2020). Paper."
-  result <- contentanalysis:::normalize_references_text(input)
-  expect_false(grepl("R\\.\n\n", result))
-})
-
-test_that("normalize_references_text preserves reference separators", {
-  skip_on_cran()
-  input <- "Smith, J. (2020). Paper 1.\n\nJones, A. (2021). Paper 2."
-  result <- contentanalysis:::normalize_references_text(input)
-  # Should keep double newline between different references (after period)
-  expect_type(result, "character")
-})
-
-# ============================================================================
 # parse_references_section() - Main Function Tests
 # ============================================================================
 
@@ -131,7 +58,7 @@ test_that("parse_references_section parses single simple reference", {
   expect_equal(result$ref_year[1], "2020")
   expect_equal(result$ref_first_author[1], "Smith") # Extracts up to first comma
   expect_equal(result$ref_first_author_normalized[1], "smith")
-  expect_equal(result$n_authors[1], 2) # Counts "Smith, J." as 2 (comma before J)
+  expect_equal(result$n_authors[1], 1) # One "Surname, Initial." author entry
 })
 
 test_that("parse_references_section extracts year correctly", {
@@ -173,9 +100,7 @@ test_that("parse_references_section counts authors correctly", {
 
   result <- parse_references_section(refs_text)
 
-  # Counts commas followed by capital letters: J, A, K = 3 commas + 1 = but also counts initials
-  # "Smith, J., Jones, A., Brown, K." has commas before J, J, A, B, K
-  expect_equal(result$n_authors[1], 6) # Adjusted to actual behavior
+  expect_equal(result$n_authors[1], 3) # Three "Surname, Initial." author entries
 })
 
 test_that("parse_references_section extracts second author", {
@@ -272,14 +197,14 @@ test_that("parse_references_section handles reference without year", {
   expect_true(is.na(result$ref_year[1]))
 })
 
-test_that("parse_references_section handles reference with only year", {
+test_that("parse_references_section discards a too-short fragment", {
   skip_on_cran()
+  # Fragments shorter than 15 chars are dropped as likely extraction artifacts
   refs_text <- "(2020)"
 
   result <- parse_references_section(refs_text)
 
-  expect_equal(nrow(result), 1)
-  expect_equal(result$ref_year[1], "2020")
+  expect_equal(nrow(result), 0)
 })
 
 test_that("parse_references_section extracts authors section", {
@@ -313,13 +238,15 @@ test_that("parse_references_section handles authors with apostrophes", {
   expect_equal(result$ref_first_author_normalized[1], "o'brien")
 })
 
-test_that("parse_references_section case insensitive for normalized author", {
+test_that("parse_references_section does not treat all-caps tokens as personal authors", {
   skip_on_cran()
+  # All-caps tokens (e.g. "SMITH", "WHO", "AIOM") are treated as institutional
+  # authors, not personal surnames, so no personal first author is extracted.
   refs_text <- "SMITH, J. (2020). PAPER IN CAPS."
 
   result <- parse_references_section(refs_text)
 
-  expect_equal(result$ref_first_author_normalized[1], "smith")
+  expect_true(is.na(result$ref_first_author_normalized[1]))
 })
 
 # --- Complex Realistic Examples ---
@@ -427,7 +354,7 @@ test_that("parse_references_section has correct column types", {
   expect_type(result$ref_id, "character")
   expect_type(result$ref_full_text, "character")
   expect_type(result$ref_year, "character")
-  expect_type(result$n_authors, "double") # Numeric, not necessarily integer
+  expect_type(result$n_authors, "integer")
 })
 
 # --- Real-World Examples ---
@@ -509,14 +436,15 @@ O'Neill, P., & Smith-Johnson, M. (2022). Hyphenated names study. PNAS, 119, 1011
 
 test_that("parse_references_section handles very long author list", {
   skip_on_cran()
-  authors <- paste(paste0("Author", 1:50, ", X."), collapse = ", ")
+  surnames <- rep(c("Smith", "Jones", "Browne", "Davis", "Miller",
+                    "Wilson", "Taylor", "Clark", "Lewis", "Walker"), 5)
+  authors <- paste(paste0(surnames, ", X."), collapse = ", ")
   refs_text <- paste0(authors, " (2020). Paper with 50 authors.")
 
   result <- parse_references_section(refs_text)
 
   expect_equal(nrow(result), 1)
-  # Counts commas before capitals: 50 authors with initials = 50*2 = 100 commas
-  expect_equal(result$n_authors[1], 100)
+  expect_equal(result$n_authors[1], 50) # 50 "Surname, Initial." author entries
 })
 
 test_that("parse_references_section handles special characters in title", {

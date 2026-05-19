@@ -299,7 +299,7 @@ convert_superscript_citations <- function(text) {
 #' Detects and removes editorial footer content typically found on the first
 #' page of scientific papers (corresponding author info, DOI, received dates,
 #' copyright notices). These footers are identified by characteristic patterns
-#' starting with markers like "∗", "Corresponding author", DOI URLs, or
+#' starting with markers like "*", "Corresponding author", DOI URLs, or
 #' copyright symbols.
 #'
 #' @param page_data Data frame from pdftools::pdf_data() for page 1
@@ -343,13 +343,13 @@ strip_first_page_footer <- function(page_data) {
         "\\bReceived\\s+\\d+\\s+\\w+\\s+\\d{4}|",             # received date
         "\\bAvailable\\s+online\\b|",                           # available online
         "\\b\\d{4}-\\d{4}/\\s*\\xa9|",                         # ISSN/copyright
-        "\\b\\d{4}-\\d{4}/\\s*©|",                             # ISSN/copyright alt
+        "\\b\\d{4}-\\d{4}/\\s*\u00a9|",                    # ISSN/copyright alt
         "\\bPublished\\s+by\\s+Elsevier|",                     # publisher
         "\\bPublished\\s+by\\s+Springer|",                     # publisher
         "\\bCreative\\s+Commons|",                              # CC license
         "\\bunder\\s+the\\s+CC\\s+BY|",                        # CC BY license
         "\\bcreativecommons\\.org|",                            # CC URL
-        "\\b©\\s*\\d{4}\\b"                                    # copyright year
+        "\\b\u00a9\\s*\\d{4}\\b"                           # copyright year
       ),
       line_text,
       perl = TRUE,

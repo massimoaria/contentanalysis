@@ -9,3 +9,7 @@
 ^CRAN-SUBMISSION$
 ^\.claude$
 ^[^/]+\.pdf$
+^\.positai$
+^test_rhetorical_moves\.R$
+^tasks$
+^revdep$
