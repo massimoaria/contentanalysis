@@ -1,3 +1,5 @@
+# contentanalysis (development version)
+
 # contentanalysis 1.1.0
 
 * New `classify_rhetorical_moves()` function: classifies rhetorical moves at the sentence level in scientific text, based on Swales' CARS model and extensions for Literature Review and Discussion/Conclusion sections. Uses a hybrid rule-based approach, optionally enhanced with Google Gemini LLM classification
