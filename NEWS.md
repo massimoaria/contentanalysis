@@ -1,4 +1,4 @@
-# contentanalysis (development version)
+# contentanalysis 1.1.1
 
 # contentanalysis 1.1.0
 
