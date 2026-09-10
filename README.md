@@ -373,6 +373,9 @@ Create interactive network visualizations showing how citations co-occur
 within your document:
 
 ``` r
+# The layout is computed in R by igraph, so seed it for a reproducible figure
+set.seed(20240101)
+
 # Create citation network
 network <- create_citation_network(
   citation_analysis_results = analysis,
@@ -773,8 +776,6 @@ if (!is.null(analysis$references_oa)) {
   # Analyze citation impact
   summary(analysis$references_oa$cited_by_count)
 }
-#>     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-#>    101.0    207.2   1153.5  12252.6   5411.2 123905.0
 ```
 
 ### Citations by section

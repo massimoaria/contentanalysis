@@ -230,6 +230,9 @@ head(analysis$citation_contexts[, c("citation_text_clean", "section", "full_cont
 Create interactive network visualizations showing how citations co-occur within your document:
 
 ```{r}
+# The layout is computed in R by igraph, so seed it for a reproducible figure
+set.seed(20240101)
+
 # Create citation network
 network <- create_citation_network(
   citation_analysis_results = analysis,
@@ -499,7 +502,7 @@ analysis$citation_references_mapping %>%
 
 ### Accessing OpenAlex metadata
 
-```{r}
+```{r eval=FALSE}
 # If OpenAlex data was retrieved
 if (!is.null(analysis$references_oa)) {
   # View enriched metadata
