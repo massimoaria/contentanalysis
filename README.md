@@ -774,7 +774,7 @@ if (!is.null(analysis$references_oa)) {
   summary(analysis$references_oa$cited_by_count)
 }
 #>     Min.  1st Qu.   Median     Mean  3rd Qu.     Max. 
-#>    101.0    207.2   1153.5  12252.6   5411.2 123905.0
+#>    101.0    207.5   1161.5  12404.6   5519.2 125444.0
 ```
 
 ### Citations by section
