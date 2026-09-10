@@ -15,6 +15,89 @@ compute_y_tolerance <- function(y_values) {
 }
 
 
+#' Join PDF word tokens of a single line into text
+#'
+#' @description
+#' Concatenates the word tokens returned by `pdftools::pdf_data()` for one
+#' line, deciding the separator from the horizontal geometry instead of
+#' inserting a space unconditionally.
+#'
+#' @details
+#' Journals frequently typeset author surnames, and sometimes section
+#' headings, in small capitals. Poppler splits such a word into two tokens,
+#' the full-size initial and the reduced-size remainder (e.g. `"S"` and
+#' `"MITH"`), which are adjacent on the page: the gap between them is
+#' essentially zero because no space character exists in the PDF. Joining
+#' every token with a space therefore invents a space and yields `"S MITH"`,
+#' which breaks author matching downstream.
+#'
+#' Two tokens are glued together only when all of the following hold:
+#' \itemize{
+#'   \item the horizontal gap is far smaller than a word space
+#'         (`gap < 0.25 * height`), allowing a small negative value for
+#'         rounding and glyph overhang; measured on typeset papers, real word
+#'         spaces sit at roughly `0.45 * height`, so the threshold keeps a
+#'         comfortable margin on both sides;
+#'   \item the left token is a single uppercase letter;
+#'   \item the right token starts with at least two uppercase letters;
+#'   \item the right token is not taller than the left one, which is the
+#'         typographic signature of small capitals.
+#' }
+#'
+#' The conjunction is deliberately narrow. A gap-only rule would also glue
+#' superscript citation markers to the preceding word (`"permutation."` +
+#' `"3"`), hiding them from `convert_superscript_citations()`, and would
+#' merge legitimate pairs such as `"A NEW"`, `"Table A B"` or `"AT&T Bell"`.
+#'
+#' @param line Data frame of tokens for one line, already ordered by `x`,
+#'   with at least a `text` column and optionally `x`, `width` and `height`.
+#'
+#' @return Character string with the line text.
+#'
+#' @keywords internal
+#' @noRd
+join_line_tokens <- function(line) {
+  n <- nrow(line)
+  if (n == 0) {
+    return("")
+  }
+  if (n == 1) {
+    return(line$text[1])
+  }
+
+  # Without geometry there is nothing to decide on: keep the legacy behaviour.
+  if (!all(c("x", "width") %in% names(line))) {
+    return(paste(line$text, collapse = " "))
+  }
+
+  left <- seq_len(n - 1)
+  right <- left + 1L
+
+  gaps <- line$x[right] - (line$x[left] + line$width[left])
+
+  if ("height" %in% names(line)) {
+    heights <- line$height
+  } else {
+    heights <- rep(12, n)
+  }
+  heights[is.na(heights)] <- 12
+  ref_height <- pmax(heights[left], heights[right])
+
+  glue <- !is.na(gaps) &
+    gaps >= -1 &
+    gaps < 0.25 * ref_height &
+    grepl("^[A-Z]$", line$text[left]) &
+    grepl("^[A-Z]{2,}", line$text[right]) &
+    heights[right] <= heights[left]
+
+  parts <- character(2 * n - 1)
+  parts[seq(1, 2 * n - 1, by = 2)] <- line$text
+  parts[seq(2, 2 * n - 2, by = 2)] <- ifelse(glue, "", " ")
+
+  paste0(parts, collapse = "")
+}
+
+
 #' Reconstruct text from PDF data with structure preservation
 #'
 #' @param column_data Data frame from pdftools::pdf_data() for a column/page
@@ -51,7 +134,7 @@ reconstruct_text_structured <- function(
   line_results <- lapply(lines, function(line) {
     line <- line[order(line$x), ]
 
-    line_text <- paste(line$text, collapse = " ")
+    line_text <- join_line_tokens(line)
     line_text <- trimws(line_text)
 
     avg_font_size <- mean(line$font_size, na.rm = TRUE)
@@ -331,7 +414,7 @@ strip_first_page_footer <- function(page_data) {
   for (line_y in sort(as.numeric(names(lines_by_y)))) {
     line <- lines_by_y[[as.character(line_y)]]
     line <- line[order(line$x), ]
-    line_text <- paste(line$text, collapse = " ")
+    line_text <- join_line_tokens(line)
 
     # Detect footer markers
     is_footer_line <- grepl(
@@ -433,7 +516,7 @@ strip_first_page_header <- function(page_data) {
   for (line_y_str in names(lines_by_y)[order(as.numeric(names(lines_by_y)))]) {
     line <- lines_by_y[[line_y_str]]
     line <- line[order(line$x), ]
-    line_text <- paste(line$text, collapse = " ")
+    line_text <- join_line_tokens(line)
 
     for (marker in body_markers) {
       if (grepl(marker, line_text, perl = TRUE)) {

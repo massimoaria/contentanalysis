@@ -1,5 +1,13 @@
 # contentanalysis (development version)
 
+* Fixed PDF import of names typeset in small capitals (#5). Poppler splits such
+  a word into a full-size initial and a reduced-size remainder (`"S"` + `"MITH"`),
+  and the extracted line was rebuilt by joining every word token with a space,
+  inserting a space that does not exist in the document. Tokens are now joined
+  using their horizontal geometry: fragments that abut on the page and carry the
+  typographic signature of small capitals are glued back together, so author
+  names such as `SMITH` and `CRONIN` are matched correctly.
+
 # contentanalysis 1.1.1
 
 # contentanalysis 1.1.0
